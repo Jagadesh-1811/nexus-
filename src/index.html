@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Meeting Intelligence</title>
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+  <!-- Custom Title Bar -->
+  <div id="title-bar">
+    <div class="drag-region">
+      <span class="logo"></span>
+      <span class="title">NEXUS</span>
+    </div>
+    <div class="window-controls">
+      <button id="btn-minimize" class="control-btn">—</button>
+      <button id="btn-maximize" class="control-btn">⬜</button>
+      <button id="btn-close" class="control-btn close-btn">✕</button>
+    </div>
+  </div>
+
+  <div id="app-container">
+    <!-- Left Navigation Rail -->
+    <nav id="sidebar">
+      <div class="nav-links">
+        <a href="#dashboard" class="nav-item active" data-page="dashboard">
+          <span class="icon"></span> Dashboard
+        </a>
+        <a href="#upload" class="nav-item" data-page="upload">
+          <span class="icon"></span> Ingest Meeting
+        </a>
+        <a href="#court" class="nav-item" data-page="court">
+          <span class="icon"></span> Commitment Court
+        </a>
+        <a href="#blockers" class="nav-item" data-page="blockers">
+          <span class="icon"></span> Blocker Web
+        </a>
+        <a href="#ask" class="nav-item" data-page="ask">
+          <span class="icon"></span> Ask Nexus
+        </a>
+      </div>
+      <div class="sidebar-footer">
+        <div class="resource-indicator">
+          <span>CPU: <strong id="cpu-load">0%</strong></span>
+          <span>RAM: <strong id="ram-load">0%</strong></span>
+        </div>
+        <div class="system-status">
+          <span class="status-dot online"></span>
+          <span class="status-text">Ollama Active</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content Work Area -->
+    <main id="content">
+      <!-- Pages will be injected here dynamically -->
+    </main>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -4,6 +4,7 @@
   "description": "Synapse Meeting Intelligence Desktop Agent",
   "main": "dist-electron/main.js",
   "scripts": {
+    "start": "node scripts/start-all.js",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

@@ -7,11 +7,11 @@ let redisInstance: Redis | null = null;
 export function getRedis(): Redis {
   if (!redisInstance) {
     redisInstance = new Redis(env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: null,
       retryStrategy: (times) => {
         if (times > 10) {
-          logger.error('Redis retry limit exceeded');
-          return null;
+          // Silent retry strategy to avoid terminal spam
+          return 5000;
         }
         return Math.min(times * 100, 3000);
       },
@@ -19,9 +19,17 @@ export function getRedis(): Redis {
       lazyConnect: false,
     });
 
-    redisInstance.on('connect', () => logger.info('Redis connected'));
-    redisInstance.on('error', (err) => logger.error('Redis error', { error: err.message }));
-    redisInstance.on('reconnecting', () => logger.warn('Redis reconnecting...'));
+    let silentErrorLogged = false;
+    redisInstance.on('connect', () => {
+      logger.info('Redis connected');
+      silentErrorLogged = false;
+    });
+    redisInstance.on('error', (err) => {
+      if (!silentErrorLogged) {
+        logger.info('Redis offline (rate limiter running in fallback memory mode)', { error: err.message });
+        silentErrorLogged = true;
+      }
+    });
   }
   return redisInstance;
 }

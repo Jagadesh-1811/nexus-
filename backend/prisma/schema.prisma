@@ -38,10 +38,12 @@ model User {
   email            String            @unique
   name             String?
   supabaseId       String            @unique @map("supabase_id")
+  role             String            @default("MEMBER")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at")
   workspaceMembers WorkspaceMember[]
   auditLogs        AuditLog[]
+  meetings         Meeting[]
 
   @@map("users")
 }
@@ -60,24 +62,29 @@ model WorkspaceMember {
 }
 
 model Meeting {
-  id               String         @id @default(uuid())
-  workspaceId      String         @map("workspace_id")
-  title            String
-  audioUrl         String?        @map("audio_url")
-  transcriptRaw    String?        @map("transcript_raw")
-  transcriptSecure String?        @map("transcript_secure")
-  status           String         @default("PENDING")
-  duration         Int?
-  participantNames String[]       @map("participant_names")
-  projectTags      String[]       @map("project_tags")
-  processingEndAt  DateTime?      @map("processing_end_at")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at")
-  workspace        Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  executionPlan    ExecutionPlan?
-  actionItems      ActionItem[]
-  decisions        Decision[]
-  risks            Risk[]
+  id                  String         @id @default(uuid())
+  workspaceId         String         @map("workspace_id")
+  createdById         String?        @map("created_by_id")
+  title               String
+  audioUrl            String?        @map("audio_url")
+  audioFileHash       String?        @map("audio_file_hash")
+  transcriptRaw       String?        @map("transcript_raw")
+  transcriptSecure    String?        @map("transcript_secure")
+  status              String         @default("PENDING")
+  duration            Int?
+  participantNames    String[]       @map("participant_names")
+  projectTags         String[]       @map("project_tags")
+  errorMessage        String?        @map("error_message")
+  processingStartedAt DateTime?      @map("processing_started_at")
+  processingEndAt     DateTime?      @map("processing_end_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
+  workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator             User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  executionPlan       ExecutionPlan?
+  actionItems         ActionItem[]
+  decisions           Decision[]
+  risks               Risk[]
 
   @@map("meetings")
 }
@@ -113,6 +120,10 @@ model ActionItem {
   validationScore   Float?    @map("validation_score")
   isDispatched      Boolean   @default(false) @map("is_dispatched")
   priority          String?
+  jiraTicketId      String?   @map("jira_ticket_id")
+  jiraTicketUrl     String?   @map("jira_ticket_url")
+  approvedById      String?   @map("approved_by_id")
+  approvedAt        DateTime? @map("approved_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
   meeting           Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)

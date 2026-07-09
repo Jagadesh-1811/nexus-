@@ -48,7 +48,7 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.MEETINGS.GET, async (event, id) => {
     try {
       const { data: meeting, error: err1 } = await supabase.from('meetings').select('*').eq('id', id).single();
-      const { data: actionItems, error: err2 } = await supabase.from('action_items').select('*').eq('meeting_id', id);
+      const { data: actionItems, error: err2 } = await supabase.from('action_items').select('*').eq('meetingId', id);
       if (err1 || !meeting) {
         throw new Error('Meeting not found');
       }
@@ -86,15 +86,23 @@ function registerIpcHandlers() {
       
       event.sender.send(IPC_CHANNELS.INGEST.PROGRESS, { stage: 'Saving', progress: 90, message: 'Saving to Supabase...' });
       
-      const { data: workspaces } = await supabase.from('workspaces').select('id').limit(1);
+      let { data: workspaces } = await supabase.from('workspaces').select('id').limit(1);
+      if (!workspaces || workspaces.length === 0) {
+        const { data: newWS, error: wsError } = await supabase
+          .from('workspaces')
+          .insert({ name: 'Default Workspace' })
+          .select('id');
+        if (wsError) throw wsError;
+        workspaces = newWS;
+      }
       if (!workspaces || workspaces.length === 0) {
         throw new Error("No workspace found to save meeting.");
       }
 
       const { error } = await supabase.from('meetings').insert({
-        workspace_id: workspaces[0].id,
+        workspaceId: workspaces[0].id,
         title: `Live Recording ${new Date().toLocaleTimeString()}`,
-        transcript_raw: mockTranscript,
+        transcriptRaw: mockTranscript,
         status: 'COMPLETED'
       });
       if (error) throw error;

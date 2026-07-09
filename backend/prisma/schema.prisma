@@ -1,0 +1,205 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AuditAction {
+  USER_SIGN_IN
+  USER_SIGN_UP
+  USER_SIGN_OUT
+  MEETING_INGEST
+  MEETING_ANALYZE
+  AI_VALIDATE
+  ACTION_DISPATCH
+  USER_OVERRIDE
+  SETTINGS_UPDATE
+  SETTINGS_CHANGED
+  API_KEY_ROTATED
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at")
+  members     WorkspaceMember[]
+  meetings    Meeting[]
+
+  @@map("workspaces")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  name             String?
+  supabaseId       String            @unique @map("supabase_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at")
+  workspaceMembers WorkspaceMember[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  role        String    @default("MEMBER")
+  joinedAt    DateTime  @default(now()) @map("joined_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId], name: "workspace_members_uniq")
+  @@map("workspace_members")
+}
+
+model Meeting {
+  id               String         @id @default(uuid())
+  workspaceId      String         @map("workspace_id")
+  title            String
+  audioUrl         String?        @map("audio_url")
+  transcriptRaw    String?        @map("transcript_raw")
+  transcriptSecure String?        @map("transcript_secure")
+  status           String         @default("PENDING")
+  duration         Int?
+  participantNames String[]       @map("participant_names")
+  projectTags      String[]       @map("project_tags")
+  processingEndAt  DateTime?      @map("processing_end_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at")
+  workspace        Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  executionPlan    ExecutionPlan?
+  actionItems      ActionItem[]
+  decisions        Decision[]
+  risks            Risk[]
+
+  @@map("meetings")
+}
+
+model ExecutionPlan {
+  id                     String   @id @default(uuid())
+  meetingId              String   @unique @map("meeting_id")
+  summary                String
+  enkryptValidated       Boolean  @default(false) @map("enkrypt_validated")
+  enkryptValidationScore Float?   @map("enkrypt_validation_score")
+  enkryptReport          Json?    @map("enkrypt_report")
+  hallucFlagsCount       Int      @default(0) @map("halluc_flags_count")
+  refinementCount        Int      @default(0) @map("refinement_count")
+  contextUsed            Boolean  @default(false) @map("context_used")
+  contextMeetingIds      String[] @map("context_meeting_ids")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at")
+  meeting                Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("execution_plans")
+}
+
+model ActionItem {
+  id                String    @id @default(uuid())
+  meetingId         String    @map("meeting_id")
+  description       String
+  assignee          String?
+  deadline          DateTime?
+  status            String    @default("EXTRACTED")
+  validationNotes   String?   @map("validation_notes")
+  validationHistory Json      @default("[]") @map("validation_history")
+  isValidated       Boolean   @default(false) @map("is_validated")
+  validationScore   Float?    @map("validation_score")
+  isDispatched      Boolean   @default(false) @map("is_dispatched")
+  priority          String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+  meeting           Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("action_items")
+}
+
+model Decision {
+  id           String   @id @default(uuid())
+  meetingId    String   @map("meeting_id")
+  title        String
+  context      String
+  impact       String?
+  stakeholders String[]
+  reversible   Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+  meeting      Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("decisions")
+}
+
+model Risk {
+  id              String   @id @default(uuid())
+  meetingId       String   @map("meeting_id")
+  description     String
+  level           String
+  mitigationSteps String?  @map("mitigation_steps")
+  owner           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+  meeting         Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("risks")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  action    String
+  resource  String?
+  severity  String   @default("INFO")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  requestId String?  @map("request_id")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model Settings {
+  id                   String   @id @default("1")
+  requireHumanApproval Boolean  @default(false) @map("require_human_approval")
+  autoJiraEnabled      Boolean  @default(true) @map("auto_jira_enabled")
+  autoSlackEnabled     Boolean  @default(true) @map("auto_slack_enabled")
+  defaultJiraProject   String?  @map("default_jira_project")
+  defaultSlackChannel  String?  @map("default_slack_channel")
+  encryptTranscripts   Boolean  @default(false) @map("encrypt_transcripts")
+  auditRetentionDays   Int      @default(90) @map("audit_retention_days")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model ApiKey {
+  id        String    @id @default(uuid())
+  name      String
+  keyHash   String    @map("key_hash")
+  keyPrefix String    @map("key_prefix")
+  scopes    String[]
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("api_keys")
+}
+
+model MemoryVector {
+  id             String   @id @default(uuid())
+  meetingId      String   @map("meeting_id")
+  qdrantPointId  String   @map("qdrant_point_id")
+  contentType    String   @map("content_type")
+  contentSnippet String   @map("content_snippet")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("memory_vectors")
+}

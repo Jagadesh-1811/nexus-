@@ -11,6 +11,7 @@ declare global {
       };
       ingest: {
         upload: (filePath: string) => Promise<{ success: boolean }>;
+        uploadBuffer: (buffer: ArrayBuffer) => Promise<{ success: boolean; transcript?: string }>;
         onProgress: (callback: (event: any, progress: any) => void) => () => void;
       };
       memory: {

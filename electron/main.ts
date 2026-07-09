@@ -16,14 +16,10 @@ import fetch from 'cross-fetch';
 
 // Load environmental config
 const envPath = path.join(__dirname, '../.env');
-console.log('__dirname is:', __dirname);
-console.log('Loading .env from:', envPath);
-const dotenvResult = dotenv.config({ path: envPath });
-console.log('dotenv result:', dotenvResult);
+dotenv.config({ path: envPath });
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder-id.supabase.co';
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'placeholder-anon-key';
-console.log('SUPABASE_URL is:', supabaseUrl);
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 let mainWindow: BrowserWindow | null = null;

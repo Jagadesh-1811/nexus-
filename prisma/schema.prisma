@@ -1,0 +1,344 @@
+// This is your Prisma schema file
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum MeetingStatus {
+  PENDING
+  TRANSCRIBING
+  ANALYZING
+  VALIDATING
+  COMPLETED
+  FAILED
+}
+
+enum ActionItemStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  JIRA_CREATED
+  SLACK_NOTIFIED
+  COMPLETED
+}
+
+enum UserRole {
+  MEMBER
+  LEAD
+  EXECUTIVE
+  VIEWER
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_LOGOUT
+  MEETING_UPLOADED
+  MEETING_ANALYZED
+  ACTION_ITEM_APPROVED
+  ACTION_ITEM_REJECTED
+  JIRA_TICKET_CREATED
+  SLACK_MESSAGE_SENT
+  SETTINGS_CHANGED
+  API_KEY_ROTATED
+  SECURITY_VIOLATION
+  VALIDATION_FAILED
+  VALIDATION_PASSED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ============================================================
+// WORKSPACES & MEMBERSHIPS
+// ============================================================
+
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  members   WorkspaceMember[]
+  meetings  Meeting[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        UserRole  @default(VIEWER)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+// ============================================================
+// USERS
+// ============================================================
+
+model User {
+  id            String            @id @default(cuid())
+  supabaseId    String            @unique
+  email         String            @unique
+  name          String
+  role          UserRole          @default(VIEWER)
+  avatarUrl     String?
+  isActive      Boolean           @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  meetings      Meeting[]
+  auditLogs     AuditLog[]
+  approvals     ActionItem[]      @relation("ApprovedBy")
+  memberships   WorkspaceMember[]
+
+  @@map("users")
+}
+
+// ============================================================
+// MEETINGS
+// ============================================================
+
+model Meeting {
+  id                  String        @id @default(cuid())
+  workspaceId         String
+  title               String
+  status              MeetingStatus @default(PENDING)
+  audioUrl            String?
+  audioFileHash       String?       // SHA-256 of upload for integrity verification
+  transcriptRaw       String?       @db.Text
+  transcriptSecure    String?       @db.Text  // AES-256 encrypted transcript
+  duration            Int?          // Duration in seconds
+  participantNames    String[]
+  projectTags         String[]
+  pipelineJobId       String?       // Mastra workflow run ID
+  processingStartedAt DateTime?
+  processingEndAt     DateTime?
+  errorMessage        String?
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  createdById         String
+
+  // Relations
+  workspace           Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy           User          @relation(fields: [createdById], references: [id])
+  actionItems         ActionItem[]
+  decisions           Decision[]
+  risks               Risk[]
+  memoryVectors       MemoryVector[]
+  executionPlan       ExecutionPlan?
+
+  @@index([status])
+  @@index([workspaceId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("meetings")
+}
+
+// ============================================================
+// EXECUTION PLAN (validated output)
+// ============================================================
+
+model ExecutionPlan {
+  id                    String   @id @default(cuid())
+  meetingId             String   @unique
+  summary               String   @db.Text
+  enkryptValidated      Boolean  @default(false)
+  enkryptValidationScore Float?   // 0.0–1.0 confidence
+  enkryptReport         Json?    // Full Enkrypt AI guardrail report
+  hallucFlagsCount      Int      @default(0)
+  refinementCount       Int      @default(0)  // # of AI refinement iterations
+  contextUsed           Boolean  @default(false) // Did Qdrant return prior context?
+  contextMeetingIds     String[] // Which prior meetings were referenced
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  meeting               Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@map("execution_plans")
+}
+
+// ============================================================
+// ACTION ITEMS
+// ============================================================
+
+model ActionItem {
+  id                String           @id @default(cuid())
+  meetingId         String
+  description       String           @db.Text
+  assignee          String?
+  deadline          DateTime?
+  status            ActionItemStatus @default(PENDING_APPROVAL)
+  priority          RiskLevel        @default(MEDIUM)
+  jiraTicketId      String?
+  jiraTicketUrl     String?
+  slackMessageId    String?
+  isValidated       Boolean          @default(false)
+  validationScore   Float?
+  validationNotes   String?          @db.Text
+  validationHistory Json?            // Full validation history (draft, flag reason, refinement, final validated state)
+  approvedById      String?
+  approvedAt        DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  meeting         Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  approvedBy      User?            @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([meetingId])
+  @@index([status])
+  @@index([assignee])
+  @@map("action_items")
+}
+
+// ============================================================
+// DECISIONS
+// ============================================================
+
+model Decision {
+  id          String   @id @default(cuid())
+  meetingId   String
+  title       String
+  context     String   @db.Text
+  impact      String   @db.Text
+  stakeholders String[]
+  reversible  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@map("decisions")
+}
+
+// ============================================================
+// RISKS & BLOCKERS
+// ============================================================
+
+model Risk {
+  id          String    @id @default(cuid())
+  meetingId   String
+  description String    @db.Text
+  level       RiskLevel @default(MEDIUM)
+  mitigationSteps String? @db.Text
+  owner       String?
+  isResolved  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  meeting     Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([level])
+  @@map("risks")
+}
+
+// ============================================================
+// CROSS-MEETING MEMORY VECTORS
+// ============================================================
+
+model MemoryVector {
+  id            String   @id @default(cuid())
+  meetingId     String
+  qdrantPointId String   @unique  // UUID of the point in Qdrant
+  contentType   String   // "transcript" | "decision" | "action_item"
+  contentSnippet String  @db.Text
+  createdAt     DateTime @default(now())
+
+  // Relations
+  meeting       Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@map("memory_vectors")
+}
+
+// ============================================================
+// SETTINGS (per-org / global)
+// ============================================================
+
+model Settings {
+  id                    String  @id @default(cuid())
+  requireHumanApproval  Boolean @default(false)
+  autoJiraEnabled       Boolean @default(true)
+  defaultJiraProject    String  @default("")
+  encryptTranscripts    Boolean @default(true)
+  auditRetentionDays    Int     @default(90)
+  enableLocalCache      Boolean @default(true)
+  updatedAt             DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ============================================================
+// AUDIT LOG (immutable security trail)
+// ============================================================
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String?
+  action      AuditAction
+  resource    String?     // e.g. "meeting:abc123"
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?     // Correlation ID
+  metadata    Json?       // Additional context
+  severity    String      @default("INFO") // INFO | WARN | ERROR | CRITICAL
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([severity])
+  @@map("audit_logs")
+}
+
+// ============================================================
+// API KEYS (for service-to-service auth)
+// ============================================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  keyHash     String   @unique  // bcrypt hash of the actual key
+  keyPrefix   String   // First 8 chars for identification (e.g. "syn_xxxx")
+  scopes      String[] // ["ingest", "read", "admin"]
+  isActive    Boolean  @default(true)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([keyPrefix])
+  @@map("api_keys")
+}

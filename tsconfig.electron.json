@@ -15,6 +15,7 @@
       "@/*": ["backend/src/*"]
     }
   },
-  "include": ["electron/**/*", "backend/src/**/*"]
+  "include": ["electron/**/*", "backend/src/**/*"],
+  "exclude": ["backend/src/scripts/**/*"]
 }
 

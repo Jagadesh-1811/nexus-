@@ -13,6 +13,8 @@ declare global {
         upload: (filePath: string) => Promise<{ success: boolean }>;
         uploadBuffer: (buffer: ArrayBuffer) => Promise<any>;
         onProgress: (callback: (event: any, progress: any) => void) => () => void;
+        onAutocapStart: (callback: (event: any, data: any) => void) => () => void;
+        onAutocapStop: (callback: (event: any) => void) => () => void;
       };
       memory: {
         search: (query: string) => Promise<any[]>;
@@ -45,6 +47,10 @@ declare global {
         revealExplorer: (path: string) => Promise<void>;
         minimize: () => Promise<void>;
         maximize: () => Promise<void>;
+      };
+      workspace: {
+        get: () => Promise<any>;
+        invite: (data: { name: string; email: string; role: string }) => Promise<any>;
       };
     };
   }
@@ -161,6 +167,93 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btn-close')?.addEventListener('click', () => {
     window.close();
+  });
+
+  // Background Auto-Capture Status Icon Button hook
+  const bgStatusBtn = document.getElementById('btn-bg-status');
+  if (bgStatusBtn) {
+    // Initial state setup
+    window.synapse.settings.getAutocapture().then((config) => {
+      if (config.enabled) {
+        bgStatusBtn.classList.add('active');
+        bgStatusBtn.setAttribute('title', 'Background Auto-Capture Active');
+      } else {
+        bgStatusBtn.classList.remove('active');
+        bgStatusBtn.setAttribute('title', 'Background Auto-Capture Disabled');
+      }
+    });
+
+    // Click handler to toggle setting directly
+    bgStatusBtn.addEventListener('click', async () => {
+      const config = await window.synapse.settings.getAutocapture();
+      const nextEnabled = !config.enabled;
+      await window.synapse.settings.updateAutocapture({ enabled: nextEnabled, consentGranted: true });
+      
+      if (nextEnabled) {
+        bgStatusBtn.classList.add('active');
+        bgStatusBtn.setAttribute('title', 'Background Auto-Capture Active');
+      } else {
+        bgStatusBtn.classList.remove('active');
+        bgStatusBtn.setAttribute('title', 'Background Auto-Capture Disabled');
+      }
+
+      // Sync settings page checkbox if currently active page is settings
+      const currentHash = window.location.hash.slice(1) || 'dashboard';
+      if (currentHash === 'settings') {
+        const toggleEl = document.getElementById('toggle-autocap') as HTMLInputElement;
+        const sliders = document.querySelectorAll('.slider') as NodeListOf<HTMLElement>;
+        if (toggleEl) {
+          toggleEl.checked = nextEnabled;
+          if (sliders[0]) {
+            sliders[0].style.backgroundColor = nextEnabled ? 'var(--primary)' : 'var(--surface-card)';
+          }
+        }
+      }
+    });
+  }
+
+  // Background Auto-Capture Real Recording Listeners
+  let autocapRecorder: MediaRecorder | null = null;
+  let autocapChunks: Blob[] = [];
+
+  window.synapse.ingest.onAutocapStart(async (_event: any, data: any) => {
+    try {
+      console.log('Background Auto-Capture started:', data.appName);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      autocapRecorder = new MediaRecorder(stream);
+      autocapChunks = [];
+
+      autocapRecorder.ondataavailable = e => {
+        if (e.data.size > 0) autocapChunks.push(e.data);
+      };
+
+      autocapRecorder.onstop = async () => {
+        const blob = new Blob(autocapChunks, { type: 'audio/webm' });
+        const arrayBuffer = await blob.arrayBuffer();
+        try {
+          console.log('Uploading real auto-captured audio buffer...');
+          
+          // Switch tab to Ingest Meeting to show the real pipeline progress bar!
+          window.location.hash = '#upload';
+          
+          await window.synapse.ingest.uploadBuffer(arrayBuffer);
+        } catch (err) {
+          console.error("Failed to upload auto-capture buffer:", err);
+        }
+      };
+
+      autocapRecorder.start();
+    } catch (err) {
+      console.error("Autocap mic access failed:", err);
+    }
+  });
+
+  window.synapse.ingest.onAutocapStop(() => {
+    if (autocapRecorder && autocapRecorder.state !== 'inactive') {
+      console.log('Background Auto-Capture stopped');
+      autocapRecorder.stop();
+      autocapRecorder.stream.getTracks().forEach(track => track.stop());
+    }
   });
 
   // Logout button hook
@@ -320,12 +413,16 @@ function renderUpload() {
         </div>
       </div>
 
-        <div id="upload-status" class="flat-panel" style="margin-top: 24px; display: none; background: var(--surface-dark);">
-        <h3>Pipeline Progress</h3>
-          <div style="background: var(--surface-card); height: 6px; border-radius: var(--r-pill); margin: 12px 0; overflow: hidden;">
-            <div id="progress-bar" style="background: var(--primary); width: 0%; height: 100%; transition: width 0.3s;"></div>
+        <div id="upload-status" class="flat-panel" style="margin-top: 24px; display: none; background: var(--surface-dark-elevated); border: 1px solid rgba(255,255,255,0.05); padding: 20px;">
+          <h3 style="color: var(--on-dark); margin-bottom: 4px;">Pipeline Progress</h3>
+          <div style="background: rgba(255, 255, 255, 0.08); height: 8px; border-radius: var(--r-pill); margin: 16px 0; overflow: hidden; position: relative; border: 1px solid rgba(255, 255, 255, 0.03);">
+            <div id="progress-bar" style="background: linear-gradient(90deg, var(--primary) 0%, #ff9e7d 100%); width: 0%; height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px rgba(204, 120, 92, 0.5);"></div>
+          </div>
+          <p id="progress-status-msg" style="font-size: 13.5px; color: var(--on-dark-soft); display: flex; align-items: center; gap: 8px;">
+            <span class="spinner" style="width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+            Initiating transcription...
+          </p>
         </div>
-          <p id="progress-status-msg" style="font-size: 13px; color: var(--muted);">Initiating transcription...</p>
       </div>
     </div>
     <style>
@@ -333,6 +430,9 @@ function renderUpload() {
         0% { opacity: 1; }
         50% { opacity: 0.5; }
         100% { opacity: 1; }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
       }
     </style>
   `;
@@ -409,11 +509,19 @@ function renderUpload() {
     const statusPanel = document.getElementById('upload-status');
     if (statusPanel) statusPanel.style.display = 'block';
 
+    const progressBar = document.getElementById('progress-bar');
+    if (progressBar) progressBar.style.width = '5%'; // Show initial action loading slice immediately
+
     const unsubscribe = window.synapse.ingest.onProgress((_event: any, data: any) => {
-      const progressBar = document.getElementById('progress-bar');
+      const pBar = document.getElementById('progress-bar');
       const statusMsg = document.getElementById('progress-status-msg');
-      if (progressBar) progressBar.style.width = `${data.progress}%`;
-      if (statusMsg) statusMsg.innerText = `[${data.stage}] ${data.message}`;
+      if (pBar) pBar.style.width = `${Math.max(5, data.progress)}%`;
+      if (statusMsg) {
+        statusMsg.innerHTML = `
+          <span class="spinner" style="width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; ${data.stage === 'Complete' ? 'display: none;' : ''}"></span>
+          [${data.stage}] ${data.message}
+        `;
+      }
 
       if (data.stage === 'Complete') {
         window.synapse.native.showNotification('Nexus Pipeline', 'Meeting intelligence extraction complete!');
@@ -859,13 +967,13 @@ async function renderSettings() {
           <label>Monitored Applications (Allow List)</label>
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: var(--surface-soft); padding: 16px; border-radius: var(--r-md); border: 1px solid var(--hairline);">
             <label style="display: flex; align-items: center; gap: 8px; text-transform: none; font-weight: 500; color: var(--ink); margin: 0;">
-              <input type="checkbox" class="app-checkbox" value="Zoom"> Zoom
+              <input type="checkbox" class="app-checkbox" value="Zoom Meeting"> Zoom
             </label>
             <label style="display: flex; align-items: center; gap: 8px; text-transform: none; font-weight: 500; color: var(--ink); margin: 0;">
-              <input type="checkbox" class="app-checkbox" value="Teams"> Microsoft Teams
+              <input type="checkbox" class="app-checkbox" value="Microsoft Teams"> Microsoft Teams
             </label>
             <label style="display: flex; align-items: center; gap: 8px; text-transform: none; font-weight: 500; color: var(--ink); margin: 0;">
-              <input type="checkbox" class="app-checkbox" value="Meet"> Google Meet (Browser tabs)
+              <input type="checkbox" class="app-checkbox" value="Google Meet"> Google Meet (Browser tabs)
             </label>
             <label style="display: flex; align-items: center; gap: 8px; text-transform: none; font-weight: 500; color: var(--ink); margin: 0;">
               <input type="checkbox" class="app-checkbox" value="Webex"> Cisco Webex
@@ -981,29 +1089,30 @@ async function renderSettings() {
 // Render Workspace Page (Team Management)
 async function renderWorkspace() {
   let members: any[] = [];
-  try {
-    const sessionRes = await window.synapse.auth.getSession();
-    const user = sessionRes?.data?.session?.user;
-    if (user) {
-      const email = user.email || '';
-      let name = '';
-      if (user.user_metadata?.full_name) {
-        name = user.user_metadata.full_name;
-      } else if (email) {
-        const parts = email.split('@');
-        const username = parts[0] || '';
-        name = username.split(/[\._-]/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  let workspaceName = 'Loading Workspace...';
+
+  async function loadWorkspaceData() {
+    try {
+      const workspace = await window.synapse.workspace.get();
+      if (workspace) {
+        workspaceName = workspace.name || 'Default Workspace';
+        members = (workspace.members || []).map((m: any) => {
+          const colors = ['#8a5e3d', '#3d8a7c', '#7c3d8a', '#8a3d3d', '#cc785c'];
+          const colorIndex = Math.abs((m.user?.email || '').split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) || 0) % colors.length;
+          const avatarColor = colors[colorIndex] || '#cc785c';
+
+          return {
+            name: m.user?.name || m.user?.email?.split('@')[0] || 'Unknown User',
+            email: m.user?.email || '',
+            role: m.role || 'MEMBER',
+            status: 'Online',
+            avatarColor
+          };
+        });
       }
-      members.push({
-        name: name || 'Workspace Owner',
-        email: email || 'owner@workspace.com',
-        role: 'Lead Owner',
-        status: 'Online',
-        avatarColor: '#cc785c'
-      });
+    } catch (e) {
+      console.error('Failed to load active workspace user list:', e);
     }
-  } catch (e) {
-    console.error('Failed to load active workspace user:', e);
   }
 
   function drawUI() {
@@ -1034,7 +1143,7 @@ async function renderWorkspace() {
 
     contentArea.innerHTML = `
       <div class="flat-panel">
-        <h2>Workspace & Team Management</h2>
+        <h2>Workspace: ${workspaceName}</h2>
         <p style="color: var(--muted); margin-bottom: 24px;">Manage your team members, workspace identities, and project clearance levels.</p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
@@ -1044,7 +1153,7 @@ async function renderWorkspace() {
             <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">Clearance level mapping for meeting summary approval keys.</p>
             
             <div id="members-list" style="display: flex; flex-direction: column; gap: 12px;">
-              ${listHtml}
+              ${listHtml.length ? listHtml : '<p style="color: var(--muted);">No other members in this workspace yet.</p>'}
             </div>
           </div>
 
@@ -1067,10 +1176,10 @@ async function renderWorkspace() {
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="font-size: 12.5px; font-weight: 600; color: var(--ink);">Workspace Role</label>
                 <select id="member-role" style="padding: 10px; background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink); border-radius: var(--r-md); font-family: inherit;">
-                  <option value="Senior Developer">Senior Developer</option>
-                  <option value="Lead Owner">Lead Owner</option>
-                  <option value="AI Agent Node">AI Agent Node</option>
-                  <option value="Project Reviewer">Project Reviewer</option>
+                  <option value="MEMBER">Member</option>
+                  <option value="LEAD">Lead Owner</option>
+                  <option value="EXECUTIVE">Executive</option>
+                  <option value="VIEWER">Viewer</option>
                 </select>
               </div>
 
@@ -1081,7 +1190,7 @@ async function renderWorkspace() {
       </div>
     `;
 
-    document.getElementById('btn-add-member')?.addEventListener('click', () => {
+    document.getElementById('btn-add-member')?.addEventListener('click', async () => {
       const nameInput = document.getElementById('member-name') as HTMLInputElement;
       const emailInput = document.getElementById('member-email') as HTMLInputElement;
       const roleSelect = document.getElementById('member-role') as HTMLSelectElement;
@@ -1095,23 +1204,28 @@ async function renderWorkspace() {
         return;
       }
 
-      // Add member to array
-      const colors = ['#8a5e3d', '#3d8a7c', '#7c3d8a', '#8a3d3d'];
-      const randColor = colors[Math.floor(Math.random() * colors.length)] || '#cc785c';
+      const inviteBtn = document.getElementById('btn-add-member') as HTMLButtonElement;
+      if (inviteBtn) {
+        inviteBtn.disabled = true;
+        inviteBtn.innerText = 'Inviting...';
+      }
 
-      members.push({
-        name,
-        email,
-        role,
-        status: 'Online',
-        avatarColor: randColor
-      });
-
-      alert(`Successfully invited ${name} to the workspace!`);
-      drawUI();
+      const res = await window.synapse.workspace.invite({ name, email, role });
+      if (res.success) {
+        alert(`Successfully invited ${name} to the workspace!`);
+        await loadWorkspaceData();
+        drawUI();
+      } else {
+        alert(`Failed to invite member: ${res.error || 'Unknown error'}`);
+        if (inviteBtn) {
+          inviteBtn.disabled = false;
+          inviteBtn.innerText = 'Invite to Workspace';
+        }
+      }
     });
   }
 
+  await loadWorkspaceData();
   drawUI();
 }
 

@@ -44,6 +44,7 @@ const envSchema = z.object({
   // Deepgram (Optional failover)
   DEEPGRAM_API_KEY: z.string().optional(),
 
+
   // Enkrypt AI (Optional guardrail)
   ENKRYPT_AI_API_KEY: z.string().optional(),
   ENKRYPT_AI_BASE_URL: z.string().url().default('https://api.enkryptai.com/v1'),

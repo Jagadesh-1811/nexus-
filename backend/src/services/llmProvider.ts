@@ -37,6 +37,20 @@ export function getLLMModel(provider: 'ollama' | 'openai' = 'ollama', modelName?
 }
 
 /**
+ * Returns the appropriate embedding model based on settings.
+ * Falls back to local nomic-embed-text:latest if OpenAI key is missing.
+ */
+export function getEmbeddingModel() {
+  if (env.OPENAI_API_KEY) {
+    return openaiCloud.embedding(env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-large');
+  } else {
+    logger.info('Using local Ollama nomic-embed-text:latest for embeddings');
+    return ollama.embedding('nomic-embed-text:latest');
+  }
+}
+
+
+/**
  * Perform a simple check if Ollama is running
  */
 export async function checkOllamaStatus(): Promise<boolean> {

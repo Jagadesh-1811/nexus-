@@ -12,6 +12,14 @@ contextBridge.exposeInMainWorld('synapse', {
     onProgress: (callback: (event: any, progress: any) => void) => {
       ipcRenderer.on('ingest:progress', callback);
       return () => ipcRenderer.removeListener('ingest:progress', callback);
+    },
+    onAutocapStart: (callback: (event: any, data: any) => void) => {
+      ipcRenderer.on('autocap:start', callback);
+      return () => ipcRenderer.removeListener('autocap:start', callback);
+    },
+    onAutocapStop: (callback: (event: any) => void) => {
+      ipcRenderer.on('autocap:stop', callback);
+      return () => ipcRenderer.removeListener('autocap:stop', callback);
     }
   },
   memory: {
@@ -45,5 +53,9 @@ contextBridge.exposeInMainWorld('synapse', {
     revealExplorer: (path: string) => ipcRenderer.invoke('native:reveal-explorer', path),
     minimize: () => ipcRenderer.invoke('win-minimize'),
     maximize: () => ipcRenderer.invoke('win-maximize')
+  },
+  workspace: {
+    get: () => ipcRenderer.invoke('workspace:get'),
+    invite: (data: { name: string; email: string; role: string }) => ipcRenderer.invoke('workspace:invite', data)
   }
 });

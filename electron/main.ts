@@ -2,6 +2,14 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
+// Make the application crash-resilient to offline network errors
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection in Electron Main:', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception in Electron Main:', error);
+});
+
 import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron';
 import { createMainWindow } from './windows/main-window';
 import { createSplashWindow } from './windows/splash-window';
@@ -78,7 +86,7 @@ let autoCaptureSettings = {
   consentGranted: false,
   showOverlay: true,
   method: 'app' as DetectionMethod,
-  appList: ['Zoom', 'Teams', 'Meet', 'Webex'],
+  appList: ['Zoom Meeting', 'Microsoft Teams', 'Google Meet', 'Webex'],
   storagePath: path.join(app.getPath('userData'), 'nexus-auto-recordings'),
   retentionDays: 7
 };
@@ -99,6 +107,52 @@ let appSettings = {
 let currentRecordingFile: string | null = null;
 let currentRecordingTitle: string | null = null;
 
+// Upload audio to Supabase Storage bucket 'meeting-audio'
+async function uploadToSupabaseStorage(filePath: string, meetingId: string): Promise<string | null> {
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    const fileExt = path.extname(filePath) || '.webm';
+    const storagePath = `${meetingId}${fileExt}`;
+    const bucketName = process.env.SUPABASE_BUCKET || 'meeting-audio';
+
+    console.log(`Uploading ${filePath} to Supabase storage bucket '${bucketName}'...`);
+
+    // Ensure bucket exists
+    try {
+      const { data: buckets } = await supabase.storage.listBuckets();
+      if (!buckets?.some(b => b.name === bucketName)) {
+        await supabase.storage.createBucket(bucketName, { public: true });
+      }
+    } catch (err) {
+      console.warn('Bucket listing/creation check ignored:', err);
+    }
+
+    const contentType = fileExt === '.webm' ? 'audio/webm' : 
+                        fileExt === '.wav' ? 'audio/wav' :
+                        fileExt === '.mp3' ? 'audio/mpeg' :
+                        fileExt === '.mp4' ? 'video/mp4' :
+                        'application/octet-stream';
+
+    const { error } = await supabase.storage
+      .from(bucketName)
+      .upload(storagePath, fileBuffer, {
+        contentType,
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Supabase storage upload failed:', error);
+      return null;
+    }
+
+    const { data } = supabase.storage.from(bucketName).getPublicUrl(storagePath);
+    return data?.publicUrl || null;
+  } catch (err) {
+    console.error('Error in uploadToSupabaseStorage:', err);
+    return null;
+  }
+}
+
 async function runInProcessPipeline(event: any, filePath: string, title: string, userId: string) {
   const wsId = 'default_workspace';
   await prisma.workspace.upsert({
@@ -107,21 +161,43 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
     create: { id: wsId, name: 'Default Workspace' },
   });
 
+  // Get active session user info to avoid mock email/name
+  const session = await supabase.auth.getSession();
+  const authUser = session.data.session?.user;
+  const email = authUser?.email || `user-${userId.slice(0, 8)}@example.com`;
+  const name = authUser?.user_metadata?.full_name || email.split('@')[0] || 'Desktop User';
+
   // Ensure user exists to satisfy foreign key constraint meetings_createdById_fkey
   await prisma.user.upsert({
     where: { id: userId },
-    update: {},
+    update: {
+      email,
+      name,
+    },
     create: {
       id: userId,
       supabaseId: `sb-${userId}`,
-      email: `user-${userId.slice(0, 8)}@example.com`,
-      name: 'Desktop User',
+      email,
+      name,
       role: 'LEAD',
     },
   });
 
   const fileHash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
   const meetingId = uuidv4();
+
+  // Trigger Supabase storage upload asynchronously
+  uploadToSupabaseStorage(filePath, meetingId).then(async (audioUrl) => {
+    if (audioUrl) {
+      console.log(`Successfully uploaded meeting audio. Public URL: ${audioUrl}`);
+      await prisma.meeting.update({
+        where: { id: meetingId },
+        data: { audioUrl }
+      });
+    }
+  }).catch(err => {
+    console.error('Failed to update meeting audioUrl:', err);
+  });
 
   const meeting = await prisma.meeting.create({
     data: {
@@ -144,27 +220,31 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
     
     switch (eventData.step) {
       case 'transcribe':
-        progress = eventData.status === 'running' ? 20 : 35;
-        message = eventData.status === 'running' ? 'Local Whisper transcription in progress...' : 'Transcription finished.';
+        progress = eventData.status === 'running' ? 15 : 30;
+        message = eventData.status === 'running' ? 'Deepgram transcription in progress...' : 'Transcription finished.';
         break;
-      case 'queryContext':
-        progress = 45;
-        message = 'Querying Qdrant vector memory...';
+      case 'queryMemory':
+        progress = eventData.status === 'running' ? 35 : 45;
+        message = eventData.status === 'running' ? 'Querying Qdrant vector memory...' : 'Memory query finished.';
         break;
       case 'extract':
-        progress = 60;
-        message = 'Extracting decisions and action items...';
+        progress = eventData.status === 'running' ? 50 : 65;
+        message = eventData.status === 'running' ? 'Extracting decisions and action items...' : 'Extraction finished.';
         break;
       case 'validate':
-        progress = 75;
-        message = 'Validating commitments against transcript...';
+        progress = eventData.status === 'running' ? 70 : 80;
+        message = eventData.status === 'running' ? 'Validating commitments against transcript...' : 'Validation finished.';
         break;
-      case 'save':
-        progress = 90;
-        message = 'Saving structure to database...';
+      case 'persist':
+        progress = eventData.status === 'running' ? 85 : 90;
+        message = eventData.status === 'running' ? 'Saving structure to database...' : 'Persistence finished.';
         break;
-      case 'triggerFollowups':
-        progress = eventData.status === 'running' ? 95 : 100;
+      case 'indexVectors':
+        progress = eventData.status === 'running' ? 92 : 95;
+        message = eventData.status === 'running' ? 'Indexing vectors in Qdrant...' : 'Vector indexing finished.';
+        break;
+      case 'followUp':
+        progress = eventData.status === 'running' ? 98 : 100;
         message = eventData.status === 'running' ? 'Triggering followups (Jira, Slack)...' : 'Pipeline complete!';
         break;
     }
@@ -178,7 +258,7 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
     }
 
     // Update tray status when workflow completes
-    if (eventData.step === 'triggerFollowups' && eventData.status !== 'running') {
+    if (eventData.step === 'followUp' && eventData.status !== 'running') {
       if (trayManager) {
         trayManager.setState('idle');
       }
@@ -188,24 +268,44 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
   setImmediate(async () => {
     try {
       const run = meetingPipeline.createRun();
-      await run.start({
+      const runResult = await run.start({
         triggerData: {
           meetingId: meetingId,
           workspaceId: wsId,
           audioFilePath: filePath,
           title: title,
-          participantNames: ['Priya', 'Jagadish'],
+          participantNames: [],
           projectTags: ['nexus'],
           requestId: uuidv4(),
           userId: userId,
         },
       });
+
+      const failedStepId = Object.keys(runResult.results).find(
+        (stepId) => runResult.results[stepId].status === 'failed'
+      );
+
+      if (failedStepId) {
+        const stepError = (runResult.results[failedStepId] as any).error;
+        console.error(`Pipeline step ${failedStepId} failed:`, stepError);
+        try {
+          await prisma.meeting.update({
+            where: { id: meetingId },
+            data: { status: 'FAILED', errorMessage: `Step ${failedStepId} failed: ${stepError}` },
+          });
+        } catch (dbErr) {}
+        if (trayManager) {
+          trayManager.setState('idle');
+        }
+      }
     } catch (err: any) {
       console.error('In-process pipeline execution error:', err);
-      await prisma.meeting.update({
-        where: { id: meetingId },
-        data: { status: 'FAILED', errorMessage: err.message },
-      });
+      try {
+        await prisma.meeting.update({
+          where: { id: meetingId },
+          data: { status: 'FAILED', errorMessage: err.message },
+        });
+      } catch (dbErr) {}
       if (trayManager) {
         trayManager.setState('idle');
       }
@@ -230,6 +330,139 @@ function registerIpcHandlers() {
       });
     }
     return autoCaptureSettings;
+  });
+
+  // Workspace management handlers
+  ipcMain.handle('workspace:get', async () => {
+    try {
+      const session = await supabase.auth.getSession();
+      const userId = session.data.session?.user?.id;
+      if (!userId) return null;
+
+      const userEmail = session.data.session?.user?.email || '';
+
+      // Find the user's workspace membership
+      let memberRecord = await prisma.workspaceMember.findFirst({
+        where: { userId },
+        include: {
+          workspace: {
+            include: {
+              members: {
+                include: { user: true }
+              }
+            }
+          }
+        }
+      });
+
+      // If no membership exists, create a default workspace and make this user the Lead Owner
+      if (!memberRecord) {
+        const wsId = 'default_workspace';
+        const workspace = await prisma.workspace.upsert({
+          where: { id: wsId },
+          update: {},
+          create: { id: wsId, name: 'Default Workspace' },
+        });
+
+        // Ensure user exists
+        const user = await prisma.user.upsert({
+          where: { id: userId },
+          update: {},
+          create: {
+            id: userId,
+            supabaseId: `sb-${userId}`,
+            email: userEmail,
+            name: userEmail.split('@')[0] || 'Console User',
+            role: 'LEAD',
+          }
+        });
+
+        memberRecord = await prisma.workspaceMember.upsert({
+          where: { workspaceId_userId: { workspaceId: wsId, userId } },
+          update: { role: 'LEAD' },
+          create: {
+            workspaceId: wsId,
+            userId,
+            role: 'LEAD'
+          },
+          include: {
+            workspace: {
+              include: {
+                members: {
+                  include: { user: true }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      return memberRecord.workspace;
+    } catch (e) {
+      console.error('Failed to get workspace:', e);
+      return null;
+    }
+  });
+
+  ipcMain.handle('workspace:invite', async (event, { name, email, role }) => {
+    try {
+      const session = await supabase.auth.getSession();
+      const userId = session.data.session?.user?.id;
+      if (!userId) throw new Error('Not authenticated');
+
+      // Get the user's workspace ID
+      const memberRecord = await prisma.workspaceMember.findFirst({
+        where: { userId }
+      });
+      if (!memberRecord) throw new Error('No workspace membership found');
+      const wsId = memberRecord.workspaceId;
+
+      // Check if user already exists in DB
+      let targetUser = await prisma.user.findFirst({
+        where: { email }
+      });
+
+      if (!targetUser) {
+        // Create user
+        const newUserId = uuidv4();
+        targetUser = await prisma.user.create({
+          data: {
+            id: newUserId,
+            supabaseId: `sb-invited-${newUserId.slice(0, 8)}`,
+            email,
+            name,
+            role: 'MEMBER'
+          }
+        });
+      }
+
+      // Map role string to UserRole enum
+      let dbRole: 'LEAD' | 'MEMBER' | 'EXECUTIVE' | 'VIEWER' = 'MEMBER';
+      const cleanRole = role.toUpperCase();
+      if (cleanRole.includes('OWNER') || cleanRole.includes('LEAD')) {
+        dbRole = 'LEAD';
+      } else if (cleanRole.includes('EXECUTIVE')) {
+        dbRole = 'EXECUTIVE';
+      } else if (cleanRole.includes('VIEWER')) {
+        dbRole = 'VIEWER';
+      }
+
+      // Add WorkspaceMember membership
+      const member = await prisma.workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: wsId, userId: targetUser.id } },
+        update: { role: dbRole },
+        create: {
+          workspaceId: wsId,
+          userId: targetUser.id,
+          role: dbRole
+        }
+      });
+
+      return { success: true, member };
+    } catch (e: any) {
+      console.error('Failed to invite member:', e);
+      return { success: false, error: e.message };
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.MEETINGS.LIST, async () => {
@@ -586,23 +819,18 @@ async function finalizeRecording() {
 }
 
 async function handleOverlayStop() {
-  await finalizeRecording();
+  if (recordingOverlay) recordingOverlay.hide();
+  if (trayManager) trayManager.setState('processing');
+  if (mainWindow) {
+    mainWindow.webContents.send('autocap:stop');
+  }
 }
 
 function handleOverlayDelete() {
-  if (currentRecordingFile && fs.existsSync(currentRecordingFile)) {
-    try {
-      fs.unlinkSync(currentRecordingFile);
-    } catch (e) {}
-  }
-  currentRecordingFile = null;
-  currentRecordingTitle = null;
-
-  if (recordingOverlay) {
-    recordingOverlay.hide();
-  }
-  if (trayManager) {
-    trayManager.setState('idle');
+  if (recordingOverlay) recordingOverlay.hide();
+  if (trayManager) trayManager.setState('idle');
+  if (mainWindow) {
+    mainWindow.webContents.send('autocap:stop');
   }
 }
 
@@ -662,18 +890,20 @@ app.whenReady().then(async () => {
       if (trayManager) trayManager.setState('recording');
       if (autoCaptureSettings.showOverlay && recordingOverlay) recordingOverlay.show(appName);
 
-      // Create dummy/mock wav recording file for ingest simulation
-      const filename = `auto-rec-${Date.now()}.wav`;
-      const tempPath = path.join(autoCaptureSettings.storagePath, filename);
-      // Write mock header bytes to form valid file
-      fs.writeFileSync(tempPath, Buffer.from([0,1,2,3,4]));
-
-      currentRecordingFile = tempPath;
-      currentRecordingTitle = `Auto-Captured Meeting - ${appName}`;
+      // Notify renderer to start actual recording
+      if (mainWindow) {
+        mainWindow.webContents.send('autocap:start', { appName });
+      }
     },
     async () => {
       // Trigger recording end
-      await finalizeRecording();
+      if (recordingOverlay) recordingOverlay.hide();
+      if (trayManager) trayManager.setState('processing');
+
+      // Notify renderer to stop recording
+      if (mainWindow) {
+        mainWindow.webContents.send('autocap:stop');
+      }
     }
   );
   meetingDetector.start();

@@ -48,6 +48,13 @@ export class MeetingDetector {
 
       if (this.options.method === 'app' || this.options.method === 'both') {
         detectedApp = await this.checkActiveWindows();
+        if (detectedApp) {
+          // Verify if WebRTC/microphone is active to avoid recording inactive/idle tabs
+          const isMicActive = await this.isMicrophoneActive();
+          if (!isMicActive) {
+            detectedApp = null;
+          }
+        }
       }
 
       if (!detectedApp && (this.options.method === 'audio' || this.options.method === 'both')) {
@@ -66,6 +73,38 @@ export class MeetingDetector {
     } finally {
       this.isChecking = false;
     }
+  }
+
+  private async isMicrophoneActive(): Promise<boolean> {
+    try {
+      const regKey = 'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone\\NonPackaged';
+      const cmd = `reg query "${regKey}" /s`;
+      const { stdout } = await execAsync(cmd);
+      
+      const blocks = stdout.split('HKEY_CURRENT_USER');
+      for (const block of blocks) {
+        const lowerBlock = block.toLowerCase();
+        if (
+          lowerBlock.includes('chrome.exe') || 
+          lowerBlock.includes('msedge.exe') || 
+          lowerBlock.includes('firefox.exe') || 
+          lowerBlock.includes('electron.exe') || 
+          lowerBlock.includes('teams.exe') || 
+          lowerBlock.includes('zoom.exe') ||
+          lowerBlock.includes('webex.exe')
+        ) {
+          if (lowerBlock.includes('lastusedtimestop') && lowerBlock.includes('0x0')) {
+            const match = lowerBlock.match(/lastusedtimestop\s+reg_qword\s+(0x0+)\b/);
+            if (match) {
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return false;
   }
 
   private async checkActiveWindows(): Promise<string | null> {
@@ -93,14 +132,12 @@ export class MeetingDetector {
         }
       }
     } catch (e) {
-      // Fallback or non-windows platform / empty processes
+      // Fallback
     }
     return null;
   }
 
   private async checkAudioActivity(): Promise<string | null> {
-    // Standard audio check: return 'Audio activity fallback' if meeting audio is simulated/detected
-    // In standard node environments, capturing loopback requires native additions. We simulate a fallback check here.
     return null;
   }
 }

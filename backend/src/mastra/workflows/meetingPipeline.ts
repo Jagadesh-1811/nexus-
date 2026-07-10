@@ -29,7 +29,7 @@ import fs from 'fs';
 
 // Synapse Local AI Services
 import { transcribeAudio } from '../../services/transcription';
-import { getLLMModel } from '../../services/llmProvider';
+import { getLLMModel, getEmbeddingModel } from '../../services/llmProvider';
 import { validateActionItem } from '../../services/validationGate';
 import { checkOnlineStatus } from '../../services/syncService';
 import { queueOfflineMeeting } from '../../services/localQueue';
@@ -50,27 +50,51 @@ const PipelineInputSchema = z.object({
 });
 
 const ExtractionResultSchema = z.object({
-  summary: z.string(),
-  decisions: z.array(z.object({
-    title: z.string(),
-    context: z.string(),
-    impact: z.string(),
-    stakeholders: z.array(z.string()),
-    reversible: z.boolean(),
-  })),
-  actionItems: z.array(z.object({
-    id: z.string(),
-    description: z.string(),
-    assignee: z.string(),
-    deadline: z.string().nullable(),
-    priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
-  })),
-  risks: z.array(z.object({
-    description: z.string(),
-    level: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  summary: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return 'No summary provided.';
+    return String(val);
+  }, z.string().default('No summary provided.')),
+  decisions: z.preprocess((val) => {
+    if (!val || !Array.isArray(val)) return [];
+    return val;
+  }, z.array(z.object({
+    title: z.preprocess((val) => val || 'Untitled Decision', z.string()),
+    context: z.preprocess((val) => val || 'No context details provided.', z.string()),
+    impact: z.preprocess((val) => val || 'No impact details provided.', z.string()),
+    stakeholders: z.preprocess((val) => {
+      if (typeof val === 'string') {
+        return val.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+      if (!val || !Array.isArray(val)) return [];
+      return val;
+    }, z.array(z.string())),
+    reversible: z.preprocess((val) => val === true, z.boolean()),
+  }))).default([]),
+  actionItems: z.preprocess((val) => {
+    if (!val || !Array.isArray(val)) return [];
+    return val;
+  }, z.array(z.object({
+    id: z.preprocess((val) => val || `ai_${Date.now()}`, z.string()),
+    description: z.preprocess((val) => val || 'Unspecified action item task.', z.string()),
+    assignee: z.preprocess((val) => val || 'Unassigned', z.string()),
+    deadline: z.preprocess((val) => val || null, z.string().nullable()),
+    priority: z.preprocess((val) => {
+      if (typeof val === 'string') return val.toUpperCase();
+      return 'LOW';
+    }, z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])),
+  }))).default([]),
+  risks: z.preprocess((val) => {
+    if (!val || !Array.isArray(val)) return [];
+    return val;
+  }, z.array(z.object({
+    description: z.preprocess((val) => val || 'Unspecified risk.', z.string()),
+    level: z.preprocess((val) => {
+      if (typeof val === 'string') return val.toUpperCase();
+      return 'LOW';
+    }, z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])),
     mitigationSteps: z.string().optional(),
     owner: z.string().optional(),
-  })),
+  }))).default([]),
 });
 
 // ============================================================
@@ -80,7 +104,7 @@ const ExtractionResultSchema = z.object({
 const transcribeStep = new Step({
   id: 'transcribe',
   execute: async ({ context, mastra }: any) => {
-    const { meetingId, audioFilePath } = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const { meetingId, audioFilePath } = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
 
     emitPipelineEvent(meetingId, { step: 'transcribe', status: 'running' });
 
@@ -94,10 +118,20 @@ const transcribeStep = new Step({
       logger.warn('Could not update meeting status in DB (offline mode)', { error: String(e) });
     }
 
-    logger.info('Pipeline Step 1: Local Transcription', { meetingId, audioFilePath });
-
-    // Transcribe locally using Whisper
-    const result = await transcribeAudio(audioFilePath, 'whisper');
+    // Transcribe audio using the dynamically detected provider (Deepgram or Whisper)
+    let result;
+    try {
+      result = await transcribeAudio(audioFilePath);
+    } catch (error: any) {
+      logger.error('Transcription step failed', { error: String(error) });
+      try {
+        await prisma.meeting.update({
+          where: { id: meetingId },
+          data: { status: 'FAILED', errorMessage: error.message || String(error) },
+        });
+      } catch (dbErr) {}
+      throw error;
+    }
 
     emitPipelineEvent(meetingId, { step: 'transcribe', status: 'complete', data: { duration: result.duration } });
 
@@ -112,7 +146,7 @@ const transcribeStep = new Step({
 const queryMemoryStep = new Step({
   id: 'queryMemory',
   execute: async ({ context }: any) => {
-    const input = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const input = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
     const { transcript } = context.getStepResult('transcribe') as { transcript: string };
     const { meetingId, projectTags } = input;
 
@@ -122,7 +156,7 @@ const queryMemoryStep = new Step({
     try {
       const queryText = transcript.slice(0, 500);
       const { embedding } = await embed({
-        model: openai.embedding(env.OPENAI_EMBEDDING_MODEL),
+        model: getEmbeddingModel(),
         value: queryText,
       });
 
@@ -150,7 +184,7 @@ const queryMemoryStep = new Step({
 const extractionStep = new Step({
   id: 'extract',
   execute: async ({ context }: any) => {
-    const input = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const input = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
     const { transcript } = context.getStepResult('transcribe') as { transcript: string };
     const { contextText } = context.getStepResult('queryMemory') as { contextText: string };
     const { meetingId } = input;
@@ -161,17 +195,27 @@ const extractionStep = new Step({
     } catch (e) {}
     logger.info('Pipeline Step 3: Extraction', { meetingId });
 
-    const prompt = `${contextText ? contextText + '\n\n' : ''}MEETING TRANSCRIPT:\n${transcript}
+    const prompt = `${contextText ? contextText + '\n\n' : ''}MEETING TRANSCRIPT:
+\"\"\"
+${transcript}
+\"\"\"
 
-Extract all decisions, action items, risks, and a summary. Follow the anti-hallucination rules strictly.
-For each action item, generate a unique ID using format: ai_${Date.now()}_<index>.
-Return JSON matching the ExtractionResult schema exactly.`;
+You are an expert AI extraction assistant. Your job is to extract decisions, action items, and risks from the MEETING TRANSCRIPT above.
+Strict Rules:
+1. DO NOT make up or hallucinate any decisions, action items, or risks.
+2. If the transcript does not explicitly contain any decisions, action items, or risks, return empty arrays: "decisions": [], "actionItems": [], "risks": [].
+3. For each decision, title MUST NOT be "Title", context MUST NOT be "Context", impact MUST NOT be "Impact". Only extract real decisions. If none exist, return [].
+4. For each action item, only extract real commitments agreed to by the speakers. Do not make up tasks like "write a product description". If none exist, return [].
+5. For each risk, only extract real risks mentioned. If none exist, return [].
+6. Every action item assignee and risk owner MUST be a real speaker mentioned in the transcript.
+7. Return JSON matching the ExtractionResult schema exactly.`;
 
     const model = getLLMModel('ollama', env.OLLAMA_MODEL || 'qwen2.5:14b');
     const { object } = await generateObject({
       model,
       schema: ExtractionResultSchema,
       prompt,
+      mode: 'json',
     });
 
     emitPipelineEvent(meetingId, {
@@ -194,7 +238,7 @@ Return JSON matching the ExtractionResult schema exactly.`;
 const validationStep = new Step({
   id: 'validate',
   execute: async ({ context }: any) => {
-    const input = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const input = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
     const { transcript } = context.getStepResult('transcribe') as { transcript: string };
     const extraction = context.getStepResult('extract') as z.infer<typeof ExtractionResultSchema>;
     const { meetingId } = input;
@@ -251,7 +295,7 @@ const validationStep = new Step({
 const persistStep = new Step({
   id: 'persist',
   execute: async ({ context }: any) => {
-    const input = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const input = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
     const { transcript, duration } = context.getStepResult('transcribe') as { transcript: string; duration: number };
     const extraction = context.getStepResult('extract') as z.infer<typeof ExtractionResultSchema>;
     const { contextMeetingIds, hasContext } = context.getStepResult('queryMemory') as any;
@@ -378,7 +422,7 @@ const persistStep = new Step({
 const indexVectorsStep = new Step({
   id: 'indexVectors',
   execute: async ({ context }: any) => {
-    const input = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const input = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
     const { transcript } = context.getStepResult('transcribe') as { transcript: string };
     const extraction = context.getStepResult('extract') as z.infer<typeof ExtractionResultSchema>;
     const persistResult = context.getStepResult('persist') as any;
@@ -401,7 +445,7 @@ const indexVectorsStep = new Step({
       ];
 
       const { embeddings } = await embedMany({
-        model: openai.embedding(env.OPENAI_EMBEDDING_MODEL),
+        model: getEmbeddingModel(),
         values: chunks,
       });
 
@@ -447,7 +491,7 @@ const indexVectorsStep = new Step({
 const followUpStep = new Step({
   id: 'followUp',
   execute: async ({ context }: any) => {
-    const input = context.machineContext?.triggerData as z.infer<typeof PipelineInputSchema>;
+    const input = (context.triggerData || context.machineContext?.triggerData) as z.infer<typeof PipelineInputSchema>;
     const extraction = context.getStepResult('extract') as z.infer<typeof ExtractionResultSchema>;
     const { validationResults } = context.getStepResult('validate') as any;
     const persistResult = context.getStepResult('persist') as any;

@@ -548,3 +548,11 @@ input[type="password"]:focus {
 .switch input:checked + .slider-cache {
   background-color: var(--primary) !important;
 }
+
+#btn-bg-status.active {
+  color: var(--primary) !important;
+}
+#btn-bg-status.active svg {
+  animation: pulse 1.5s infinite;
+  transform: scale(1.1);
+}

@@ -11,8 +11,8 @@ export const qdrant = new QdrantClient({
   ...(env.QDRANT_API_KEY ? { apiKey: env.QDRANT_API_KEY } : {}),
 });
 
-const COLLECTION_NAME = env.QDRANT_COLLECTION;
-const VECTOR_SIZE = 3072; // text-embedding-3-large
+const COLLECTION_NAME = env.OPENAI_API_KEY ? env.QDRANT_COLLECTION : `${env.QDRANT_COLLECTION}_local`;
+const VECTOR_SIZE = env.OPENAI_API_KEY ? 3072 : 768; // 3072 for text-embedding-3-large, 768 for nomic-embed-text
 
 // ============================================================
 // Collection Initialization

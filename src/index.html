@@ -14,7 +14,10 @@
       <span class="logo"></span>
       <span class="title">NEXUS</span>
     </div>
-    <div class="window-controls">
+    <div class="window-controls" style="display: flex; align-items: center;">
+      <button id="btn-bg-status" class="control-btn" title="Toggle Background Auto-Capture" style="margin-right: 10px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; border-radius: 4px; color: var(--muted); -webkit-app-region: no-drag; transition: all 0.2s;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="radar-icon" style="transition: transform 0.3s ease;"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      </button>
       <button id="btn-minimize" class="control-btn">—</button>
       <button id="btn-maximize" class="control-btn">⬜</button>
       <button id="btn-close" class="control-btn close-btn">✕</button>

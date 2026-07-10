@@ -137,10 +137,18 @@ async function start() {
     logger.info('Starting Synapse Orchestrator...');
 
     // Initialize infrastructure
-    await prisma.$connect();
-    logger.info('PostgreSQL connected');
+    try {
+      await prisma.$connect();
+      logger.info('PostgreSQL connected');
+    } catch (dbError) {
+      logger.error('PostgreSQL connection failed. Running in offline/degraded mode.', { error: String(dbError) });
+    }
 
-    await initializeQdrantCollection();
+    try {
+      await initializeQdrantCollection();
+    } catch (qdrantError) {
+      logger.error('Qdrant initialization failed. Running in offline/degraded mode.', { error: String(qdrantError) });
+    }
 
     // Initialize WebSocket
     initializeWebSocket(httpServer);

@@ -198,7 +198,7 @@ router.post(
       setImmediate(async () => {
         try {
           const run = meetingPipeline.createRun();
-          await run.start({
+          const runResult = await run.start({
             triggerData: {
               meetingId: meeting.id,
               workspaceId: wsId,
@@ -210,6 +210,19 @@ router.post(
               userId: req.auth!.userId,
             },
           });
+
+          const failedStepId = Object.keys(runResult.results).find(
+            (stepId) => runResult.results[stepId].status === 'failed'
+          );
+
+          if (failedStepId) {
+            const stepError = (runResult.results[failedStepId] as any).error;
+            logger.error('Pipeline execution failed at step', { step: failedStepId, error: stepError, meetingId: meeting.id });
+            await prisma.meeting.update({
+              where: { id: meeting.id },
+              data: { status: 'FAILED', errorMessage: `Step ${failedStepId} failed: ${stepError}` },
+            });
+          }
         } catch (pipelineError) {
           logger.error('Pipeline execution failed', { error: pipelineError, meetingId: meeting.id });
           await prisma.meeting.update({

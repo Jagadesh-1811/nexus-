@@ -88,6 +88,7 @@ export async function validateActionItem(
       model: auditorModel,
       schema: EnkryptResponseSchema,
       prompt,
+      mode: 'json',
     });
 
     logger.info(`Local audit result: isGrounded=${object.isGrounded}, score=${object.confidenceScore}`);

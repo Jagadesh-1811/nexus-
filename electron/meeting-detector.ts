@@ -16,6 +16,8 @@ export class MeetingDetector {
   private intervalId: NodeJS.Timeout | null = null;
   private isChecking: boolean = false;
   private currentActiveApp: string | null = null;
+  private consecutiveNonDetections = 0;
+  private maxNonDetectionsGrace = 4; // 4 checks * 5000ms = 20 seconds grace period for multitasking/tab-switching
 
   constructor(
     private options: MeetingDetectorOptions,
@@ -49,10 +51,13 @@ export class MeetingDetector {
       if (this.options.method === 'app' || this.options.method === 'both') {
         detectedApp = await this.checkActiveWindows();
         if (detectedApp) {
-          // Verify if WebRTC/microphone is active to avoid recording inactive/idle tabs
-          const isMicActive = await this.isMicrophoneActive();
-          if (!isMicActive) {
-            detectedApp = null;
+          // Standard standalone apps don't need WebRTC checks; only check for browser-based Meet calls in 'both' mode
+          const isBrowserMeet = ['google meet', 'meet'].includes(detectedApp.toLowerCase());
+          if (this.options.method === 'both' && isBrowserMeet) {
+            const isMicActive = await this.isMicrophoneActive();
+            if (!isMicActive) {
+              detectedApp = null;
+            }
           }
         }
       }
@@ -61,12 +66,27 @@ export class MeetingDetector {
         detectedApp = await this.checkAudioActivity();
       }
 
-      if (detectedApp && !this.currentActiveApp) {
-        this.currentActiveApp = detectedApp;
-        this.onMeetingDetected(detectedApp);
-      } else if (!detectedApp && this.currentActiveApp) {
-        this.currentActiveApp = null;
-        this.onMeetingEnded();
+      if (detectedApp) {
+        this.consecutiveNonDetections = 0; // Reset counter on successful detection
+        if (!this.currentActiveApp) {
+          this.currentActiveApp = detectedApp;
+          this.onMeetingDetected(detectedApp);
+        }
+      } else if (this.currentActiveApp) {
+        // If no app was detected, but we are currently recording, do a safety double-check:
+        // is the microphone still active? (Meaning they are still in the call, just switched tabs/focused another app)
+        const isMicStillActive = await this.isMicrophoneActive();
+        if (isMicStillActive) {
+          this.consecutiveNonDetections = 0; // Reset counter
+        } else {
+          // Both window matching and microphone check failed: start grace period countdown
+          this.consecutiveNonDetections++;
+          if (this.consecutiveNonDetections >= this.maxNonDetectionsGrace) {
+            this.currentActiveApp = null;
+            this.consecutiveNonDetections = 0;
+            this.onMeetingEnded();
+          }
+        }
       }
     } catch (err) {
       console.error('[MeetingDetector] Error during check:', err);
@@ -102,7 +122,8 @@ export class MeetingDetector {
         }
       }
     } catch (e) {
-      // Fallback
+      // Fallback: return true to avoid blocking auto-record if query fails
+      return true;
     }
     return false;
   }

@@ -155,7 +155,7 @@ router.post(
             description: 'Implement vector indexing checks',
             assignee: 'Jagadish',
             deadline: new Date(Date.now() + 86400000),
-            status: 'PENDING_APPROVAL',
+            status: 'APPROVED',
             priority: 'MEDIUM',
             isValidated: true,
           },

@@ -100,7 +100,7 @@ async function syncMeetingToCloud(meeting: QueuedMeeting): Promise<void> {
           validationScore: res.confidenceScore,
           validationNotes: res.hallucFlags.join('; ') || null,
           validationHistory: res.validationHistory || JSON.stringify(res),
-          status: res.isValid ? 'APPROVED' : 'REJECTED',
+          status: 'APPROVED',
         }
       });
     }

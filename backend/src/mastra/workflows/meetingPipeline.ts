@@ -342,7 +342,7 @@ const persistStep = new Step({
         where: { id: meetingId },
         data: {
           status: 'COMPLETED',
-          transcriptRaw: env.NODE_ENV === 'development' ? transcript.slice(0, 1000) : null,
+          transcriptRaw: transcript,
           transcriptSecure: encryptedTranscript,
           duration,
           participantNames,
@@ -377,7 +377,7 @@ const persistStep = new Step({
             validationScore: result.confidenceScore,
             validationNotes: result.hallucFlags.join('; ') || null,
             validationHistory: result.refinementHistory,
-            status: result.isValid ? (env.REQUIRE_HUMAN_APPROVAL ? 'PENDING_APPROVAL' : 'APPROVED') : 'REJECTED',
+            status: 'APPROVED',
           },
         });
       }

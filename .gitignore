@@ -20,3 +20,4 @@ lerna-debug.log*
 out/
 build/
 release/
+logs/

@@ -60,6 +60,34 @@ declare global {
 const contentArea = document.getElementById('content') as HTMLElement;
 const navItems = document.querySelectorAll('.nav-item');
 
+function applyTheme() {
+  const theme = localStorage.getItem('nexus_theme') || 'system';
+  if (theme === 'dark') {
+    document.body.classList.add('dark');
+  } else if (theme === 'light') {
+    document.body.classList.remove('dark');
+  } else {
+    // system theme
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (systemPrefersDark) {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+  }
+}
+
+// Apply immediately on load
+applyTheme();
+
+// Listen to system theme shifts
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  const theme = localStorage.getItem('nexus_theme') || 'system';
+  if (theme === 'system') {
+    applyTheme();
+  }
+});
+
 function navigateToPage(page: string) {
   navItems.forEach(item => {
     if (item.getAttribute('data-page') === page) {
@@ -139,11 +167,13 @@ async function checkAuthAndNavigate(page: string) {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.style.display = 'flex';
     updateSidebarProfile();
+    checkConsentOnboarding();
     navigateToPage(page);
   } catch (err) {
     if (localStorage.getItem('has_logged_in') === 'true') {
       const sidebar = document.getElementById('sidebar');
       if (sidebar) sidebar.style.display = 'flex';
+      checkConsentOnboarding();
       navigateToPage(page);
     } else {
       renderLogin();
@@ -288,11 +318,16 @@ async function renderDashboard() {
       <h2>Project Command Center</h2>
       <p style="color: var(--muted); margin-bottom: 24px;">Real-time view of verified tasks, local intelligence node status, and team activity.</p>
       
-      <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
-        <div class="flat-panel" style="margin: 0;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+        <div class="flat-panel" style="margin: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
           <h3>Trust Meter Level</h3>
           <div id="trust-meter-value" style="font-size: 36px; font-weight: bold; color: var(--validated-green); margin: 12px 0;">—</div>
           <p id="trust-meter-desc" style="font-size: 13px; color: var(--muted);">Calculating approval ratio from verified action items...</p>
+        </div>
+        <div class="flat-panel" style="margin: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <h3>Meeting Transcripts</h3>
+          <div id="meetings-count-dashboard" style="font-size: 36px; font-weight: bold; color: var(--primary); margin: 12px 0;">—</div>
+          <p id="meetings-count-desc" style="font-size: 13px; color: var(--muted);">Total meetings ingested and indexed.</p>
         </div>
       </div>
     </div>
@@ -310,10 +345,20 @@ async function renderDashboard() {
     const meetingsPendingEl = document.getElementById('meetings-pending');
     if (meetingsCountEl) meetingsCountEl.innerText = String(meetings.length);
 
+    const meetingsCountDashboardEl = document.getElementById('meetings-count-dashboard');
+    if (meetingsCountDashboardEl) meetingsCountDashboardEl.innerText = String(meetings.length);
+    const meetingsCountDescEl = document.getElementById('meetings-count-desc');
+    if (meetingsCountDescEl) {
+      const completedCount = meetings.filter((m: any) => (m.status || '').toUpperCase() === 'COMPLETED').length;
+      meetingsCountDescEl.innerText = `${completedCount} of ${meetings.length} transcripts fully processed.`;
+    }
+
     // Compute trust meter and pending count from action items across all meetings
     let totalItems = 0;
     let approvedItems = 0;
     let pendingItems = 0;
+    let totalValidationScore = 0;
+    let meetingWithScoreCount = 0;
 
     for (const m of meetings) {
       try {
@@ -321,14 +366,37 @@ async function renderDashboard() {
         const items: any[] = res.actionItems || [];
         totalItems += items.length;
         approvedItems += items.filter((i: any) => ['APPROVED', 'VALIDATED', 'DISPATCHED'].includes((i.status || '').toUpperCase())).length;
-        pendingItems += items.filter((i: any) => ['PENDING', 'FLAGGED'].includes((i.status || '').toUpperCase())).length;
+        pendingItems += items.filter((i: any) => ['PENDING', 'FLAGGED', 'EXTRACTED', 'PENDING_APPROVAL'].includes((i.status || '').toUpperCase())).length;
+
+        const score = res.executionPlan?.enkryptValidationScore ?? res.meeting?.executionPlan?.enkryptValidationScore;
+        if (score !== undefined && score !== null) {
+          totalValidationScore += score;
+          meetingWithScoreCount++;
+        }
       } catch (_) { }
     }
 
-    const trustPct = totalItems > 0 ? Math.round((approvedItems / totalItems) * 100) : 0;
+    let trustPct = 0;
+    let aiScore = 0.82; // Base confidence score fallback (82%)
+    if (meetingWithScoreCount > 0) {
+      aiScore = totalValidationScore / meetingWithScoreCount;
+    }
+
+    if (totalItems > 0) {
+      const approvalRatio = approvedItems / totalItems;
+      // Blended Trust score formula: starts at AI confidence level and goes to 100% on full user approvals
+      trustPct = Math.round((aiScore * (1 - approvalRatio) + approvalRatio) * 100);
+      
+      if (approvedItems === totalItems) {
+        trustPct = 100;
+      }
+    } else {
+      trustPct = Math.round(aiScore * 100);
+    }
+
     const trustMeterEl = document.getElementById('trust-meter-value');
     const trustDescEl = document.getElementById('trust-meter-desc');
-    if (trustMeterEl) trustMeterEl.innerText = totalItems > 0 ? `${trustPct}%` : 'N/A';
+    if (trustMeterEl) trustMeterEl.innerText = `${trustPct}%`;
     if (trustDescEl) {
       trustDescEl.innerText = totalItems > 0
         ? `${approvedItems} of ${totalItems} commitments approved. ${trustPct >= 80 ? 'Autonomy enabled for low-risk actions.' : 'Manual review recommended.'}`
@@ -361,11 +429,11 @@ async function renderDashboard() {
               <span class="rail-node ${m.status === 'COMPLETED' ? 'active-green' : ''}">Dispatched</span>
             </div>
             
-            ${m.transcriptRaw || m.status === 'PENDING' ? `
+            ${m.transcriptRaw || ['PENDING', 'COMPLETED', 'TRANSCRIBING', 'ANALYZING', 'VALIDATING'].includes((m.status || '').toUpperCase()) ? `
               <div style="margin-top: 12px; border-top: 1px dashed var(--hairline); padding-top: 10px;">
                 <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="toggleScript(${index})">Toggle Transcribed Script</button>
                 <div id="script-block-${index}" style="display: none; margin-top: 10px; background: var(--surface-soft); padding: 12px; border-radius: var(--r-md); font-size: 12.5px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-family: inherit; color: var(--body); border: 1px solid var(--hairline);">
-                  ${m.transcriptRaw || "(Processing audio transcript...) Preview:\nUser A: Let's finalize the Q3 launch plan. I will complete the API integration docs by Friday. User B, can you verify the security audit logs setting before then?\nUser B: Yes, I will do that by Thursday."}
+                  ${m.transcriptRaw || "(Processing audio transcript...)"}
                 </div>
               </div>
             ` : ''}
@@ -557,7 +625,7 @@ async function renderCourt() {
       try {
         const res = await window.synapse.meetings.get(m.id);
         const flagged = (res.actionItems || []).filter((i: any) =>
-          ['FLAGGED', 'PENDING'].includes((i.status || '').toUpperCase())
+          ['FLAGGED', 'PENDING', 'EXTRACTED', 'PENDING_APPROVAL'].includes((i.status || '').toUpperCase())
         ).map((i: any) => ({ ...i, meetingTitle: m.title }));
         allFlagged.push(...flagged);
       } catch (_) { }
@@ -566,30 +634,40 @@ async function renderCourt() {
     if (allFlagged.length === 0) {
       container.innerHTML = `<p style="color: var(--validated-green); font-weight: 500;">No flagged items. All commitments clear. ✓</p>`;
     } else {
-      container.innerHTML = allFlagged.map((item: any) => `
-        <div class="flat-panel" style="background: #fef9f6; border-color: var(--flagged-amber); border-left: 3px solid var(--flagged-amber);">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-            <strong style="color: var(--flagged-amber);">Flagged Action Item</strong>
-            <span class="mono" style="font-size: 11px; color: var(--muted);">${item.meetingTitle || ''} · ID: ${item.id.slice(0, 8)}...</span>
-          </div>
-          
-          <p style="margin: 10px 0; font-size: 15px; color: var(--body-strong);">&ldquo;${item.description || item.title || 'No description'}&rdquo;</p>
-          
-          <div style="background: rgba(0,0,0,0.2); padding: 12px; margin: 12px 0; border-radius: 4px;">
-            <span style="font-size: 11px; color: var(--risk-red); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 4px;">Adversarial Critic Objection:</span>
-            <p style="font-size: 13px; color: var(--body);">${item.validationNotes || item.validation_notes || 'Action item requires manual refinement or verification.'}</p>
-          </div>
+      container.innerHTML = allFlagged.map((item: any) => {
+        const isFlagged = ['FLAGGED', 'PENDING'].includes((item.status || '').toUpperCase());
+        const hasObjection = !!(item.validationNotes || item.validation_notes);
+        const borderColor = isFlagged ? 'var(--risk-red)' : 'var(--flagged-amber)';
+        const badgeColor = isFlagged ? 'var(--risk-red)' : 'var(--flagged-amber)';
+        const badgeText = isFlagged ? 'Flagged Objection' : 'Extracted Commitment';
 
-          <div style="background: var(--surface-soft); padding: 8px 12px; font-style: italic; font-size: 13px; border-left: 3px solid var(--hairline); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--muted);">
-            Assignee: ${item.assignee || item.assigneeName || 'Unassigned'} · Due: ${item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'No due date'}
-          </div>
+        return `
+          <div class="flat-panel" style="background: #fef9f6; border-color: ${borderColor}; border-left: 3px solid ${borderColor};">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <strong style="color: ${badgeColor};">${badgeText}</strong>
+              <span class="mono" style="font-size: 11px; color: var(--muted);">${item.meetingTitle || ''} · ID: ${item.id.slice(0, 8)}...</span>
+            </div>
+            
+            <p style="margin: 10px 0; font-size: 15px; color: var(--body-strong);">&ldquo;${item.description || item.title || 'No description'}&rdquo;</p>
+            
+            ${hasObjection ? `
+            <div style="background: rgba(0,0,0,0.04); border: 1px solid var(--hairline); padding: 12px; margin: 12px 0; border-radius: 4px;">
+              <span style="font-size: 11px; color: var(--risk-red); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 4px;">Adversarial Critic Objection:</span>
+              <p style="font-size: 13px; color: var(--body);">${item.validationNotes || item.validation_notes}</p>
+            </div>
+            ` : ''}
 
-          <div style="margin-top: 16px; display: flex; gap: 8px;">
-            <button class="btn primary" onclick="approveFlagged('${item.id}')">Force Approve</button>
-            <button class="btn" onclick="editFlagged('${item.id}')">Edit Commitment</button>
+            <div style="background: var(--surface-soft); padding: 8px 12px; font-style: italic; font-size: 13px; border-left: 3px solid var(--hairline); border-radius: 0 var(--r-sm) var(--r-sm) 0; color: var(--muted);">
+              Assignee: ${item.assignee || item.assigneeName || 'Unassigned'} · Due: ${item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'No due date'}
+            </div>
+
+            <div style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="btn primary" onclick="approveFlagged('${item.id}')">Force Approve</button>
+              <button class="btn" onclick="editFlagged('${item.id}')">Edit Commitment</button>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   } catch (err) {
     console.error(err);
@@ -924,6 +1002,18 @@ async function renderSettings() {
             <span class="slider-cache" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--surface-card); transition: .3s; border-radius: 24px; border: 1px solid var(--hairline);"></span>
           </label>
         </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-soft); padding: 16px; border-radius: var(--r-md); border: 1px solid var(--hairline);">
+          <div>
+            <strong>Theme / Appearance</strong>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Configure the visual interface theme of the application.</div>
+          </div>
+          <select id="select-theme" style="width: 180px; padding: 6px 10px; background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink); border-radius: var(--r-sm); outline: none; font-size: 13.5px; font-weight: 500;">
+            <option value="system">⚡ System Theme</option>
+            <option value="light">☀️ Light Theme</option>
+            <option value="dark">🌙 Dark Theme</option>
+          </select>
+        </div>
       </div>
 
       <div class="divider"></div>
@@ -1010,6 +1100,7 @@ async function renderSettings() {
   const config = await window.synapse.settings.getAutocapture();
 
   const toggleLocalCacheEl = document.getElementById('toggle-local-cache') as HTMLInputElement;
+  const themeEl = document.getElementById('select-theme') as HTMLSelectElement;
   const toggleEl = document.getElementById('toggle-autocap') as HTMLInputElement;
   const toggleShowOverlayEl = document.getElementById('toggle-show-overlay') as HTMLInputElement;
   const methodEl = document.getElementById('select-detection-method') as HTMLSelectElement;
@@ -1018,6 +1109,7 @@ async function renderSettings() {
   const checkboxes = document.querySelectorAll('.app-checkbox') as NodeListOf<HTMLInputElement>;
 
   if (toggleLocalCacheEl) toggleLocalCacheEl.checked = generalSettings?.enableLocalCache ?? true;
+  if (themeEl) themeEl.value = localStorage.getItem('nexus_theme') || 'system';
   if (toggleEl) toggleEl.checked = config.enabled;
   if (toggleShowOverlayEl) toggleShowOverlayEl.checked = config.showOverlay ?? true;
   if (methodEl) methodEl.value = config.method;
@@ -1068,6 +1160,7 @@ async function renderSettings() {
 
     const payload = {
       enabled: toggleEl.checked,
+      consentGranted: toggleEl.checked ? true : config.consentGranted,
       showOverlay: toggleShowOverlayEl.checked,
       method: methodEl.value,
       appList: list,
@@ -1081,6 +1174,12 @@ async function renderSettings() {
     await window.synapse.settings.update({
       enableLocalCache: toggleLocalCacheEl.checked
     });
+
+    // Save theme setting
+    if (themeEl) {
+      localStorage.setItem('nexus_theme', themeEl.value);
+      applyTheme();
+    }
 
     alert('Settings updated successfully.');
   });

@@ -75,6 +75,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
+let isQuitting = false;
+let wasWindowHiddenBeforeRecording = false;
 
 // Background Auto-Capture modules
 let trayManager: TrayManager | null = null;
@@ -488,10 +490,11 @@ function registerIpcHandlers() {
         where: { id },
         include: {
           actionItems: { orderBy: { createdAt: 'asc' } },
+          executionPlan: true,
         },
       });
       if (!meeting) throw new Error('Meeting not found');
-      return { meeting, actionItems: meeting.actionItems || [] };
+      return { meeting, actionItems: meeting.actionItems || [], executionPlan: meeting.executionPlan || null };
     } catch (e) {
       console.error(e);
       throw e;
@@ -855,6 +858,12 @@ app.whenReady().then(async () => {
   trayManager = new TrayManager(
     () => {
       if (mainWindow) {
+        wasWindowHiddenBeforeRecording = false; // Reset offscreen status since user restored the window
+        // If window was moved off-screen for background recording, center it back
+        const pos = mainWindow.getPosition();
+        if (pos && pos.length >= 2 && pos[0] < -5000) {
+          mainWindow.center();
+        }
         mainWindow.show();
         mainWindow.focus();
       }
@@ -866,6 +875,7 @@ app.whenReady().then(async () => {
       require('electron').shell.openPath(autoCaptureSettings.storagePath);
     },
     () => {
+      isQuitting = true;
       app.quit();
     }
   );
@@ -892,6 +902,14 @@ app.whenReady().then(async () => {
 
       // Notify renderer to start actual recording
       if (mainWindow) {
+        // Chromium disables microphone capture on hidden windows; show window off-screen to keep recording working!
+        if (!mainWindow.isVisible()) {
+          wasWindowHiddenBeforeRecording = true;
+          mainWindow.showInactive();
+          mainWindow.setPosition(-10000, -10000);
+        } else {
+          wasWindowHiddenBeforeRecording = false;
+        }
         mainWindow.webContents.send('autocap:start', { appName });
       }
     },
@@ -903,6 +921,10 @@ app.whenReady().then(async () => {
       // Notify renderer to stop recording
       if (mainWindow) {
         mainWindow.webContents.send('autocap:stop');
+        if (wasWindowHiddenBeforeRecording) {
+          mainWindow.hide();
+          wasWindowHiddenBeforeRecording = false;
+        }
       }
     }
   );
@@ -912,6 +934,20 @@ app.whenReady().then(async () => {
 
   setTimeout(() => {
     mainWindow = createMainWindow();
+
+    mainWindow.on('close', (e) => {
+      if (!isQuitting) {
+        e.preventDefault();
+        // If currently recording, move off-screen so Chromium doesn't kill WebRTC mic stream. Otherwise hide.
+        const isRecording = trayManager && trayManager.getState() === 'recording';
+        if (isRecording) {
+          wasWindowHiddenBeforeRecording = true;
+          mainWindow?.setPosition(-10000, -10000);
+        } else {
+          mainWindow?.hide();
+        }
+      }
+    });
 
     mainWindow.once('ready-to-show', () => {
       if (splashWindow) {
@@ -923,7 +959,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && !autoCaptureSettings.enabled) {
     app.quit();
   }
 });

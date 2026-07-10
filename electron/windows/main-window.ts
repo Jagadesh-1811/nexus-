@@ -1,7 +1,13 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, session } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export function createMainWindow(): BrowserWindow {
+  let iconPath = path.join(__dirname, '../../assets/icon.png');
+  if (!fs.existsSync(iconPath)) {
+    iconPath = path.join(__dirname, '../../../electron/assets/icon.png');
+  }
+
   const win = new BrowserWindow({
     width: 1024,
     height: 768,
@@ -9,11 +15,12 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 768,
     frame: false, // frameless window
     backgroundColor: '#faf9f5', // match Claude cream theme
-    icon: path.join(__dirname, '../../assets/icon.png'),
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false,
     }
   });
 
@@ -27,6 +34,22 @@ export function createMainWindow(): BrowserWindow {
 
   win.webContents.on('console-message', (event, level, message, line, sourceId) => {
     console.log(`[Renderer Console] ${message} (Source: ${sourceId}:${line})`);
+  });
+
+  // Grant media permission automatically for WebRTC/microphone auto-capture
+  session.defaultSession.setPermissionRequestHandler((webContents: any, permission: string, callback: (granted: boolean) => void) => {
+    if (permission === 'media') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  session.defaultSession.setPermissionCheckHandler((webContents: any, permission: string, requestingOrigin: string, details: any) => {
+    if (permission === 'media') {
+      return true;
+    }
+    return false;
   });
 
   return win;

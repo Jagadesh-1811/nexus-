@@ -66,8 +66,8 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
     return;
   }
 
-  // Strip encrypted transcript from response (only return metadata)
-  const { transcriptSecure, transcriptRaw, ...safeData } = meeting;
+  // Strip encrypted transcript from response
+  const { transcriptSecure, ...safeData } = meeting;
 
   res.json({ meeting: safeData });
 });

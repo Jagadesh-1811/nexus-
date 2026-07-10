@@ -31,6 +31,10 @@ export class TrayManager {
     this.update();
   }
 
+  public getState(): TrayState {
+    return this.currentState;
+  }
+
   public setPaused(paused: boolean) {
     this.isPaused = paused;
     this.update();

@@ -37,7 +37,7 @@ const envSchema = z.object({
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-large'),
 
   // Ollama (Primary local AI processor)
-  OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
+  OLLAMA_BASE_URL: z.string().url().default('http://127.0.0.1:11434/v1'),
   OLLAMA_MODEL: z.string().default('qwen2.5:14b'),
   OLLAMA_AUDITOR_MODEL: z.string().default('qwen2.5:14b'),
 

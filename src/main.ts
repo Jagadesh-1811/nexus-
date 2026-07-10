@@ -8,6 +8,7 @@ declare global {
         list: () => Promise<any[]>;
         get: (id: string) => Promise<any>;
         approve: (id: string, updates: any) => Promise<{ success: boolean }>;
+        delete: (id: string) => Promise<{ success: boolean }>;
       };
       ingest: {
         upload: (filePath: string) => Promise<{ success: boolean }>;
@@ -88,7 +89,20 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   }
 });
 
+function setContentAreaStyle(mode: 'app' | 'landing') {
+  if (!contentArea) return;
+  if (mode === 'landing') {
+    contentArea.style.padding = '0';
+    contentArea.style.overflowY = 'hidden';
+    contentArea.style.background = 'transparent';
+  } else {
+    contentArea.style.padding = '';
+    contentArea.style.overflowY = '';
+    contentArea.style.background = '';
+  }
+}
 function navigateToPage(page: string) {
+  setContentAreaStyle('app');
   navItems.forEach(item => {
     if (item.getAttribute('data-page') === page) {
       item.classList.add('active');
@@ -161,22 +175,38 @@ async function checkAuthAndNavigate(page: string) {
       localStorage.setItem('has_logged_in', 'true');
     }
     if (!session && localStorage.getItem('has_logged_in') !== 'true') {
-      renderLogin();
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.style.display = 'none';
+      if (page === 'login') {
+        renderLogin(false);
+      } else if (page === 'signup') {
+        renderLogin(true);
+      } else {
+        renderLandingPage();
+      }
       return;
     }
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.style.display = 'flex';
     updateSidebarProfile();
     checkConsentOnboarding();
-    navigateToPage(page);
+    navigateToPage(page === 'login' || page === 'signup' ? 'dashboard' : page);
   } catch (err) {
     if (localStorage.getItem('has_logged_in') === 'true') {
       const sidebar = document.getElementById('sidebar');
       if (sidebar) sidebar.style.display = 'flex';
       checkConsentOnboarding();
-      navigateToPage(page);
+      navigateToPage(page === 'login' || page === 'signup' ? 'dashboard' : page);
     } else {
-      renderLogin();
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.style.display = 'none';
+      if (page === 'login') {
+        renderLogin(false);
+      } else if (page === 'signup') {
+        renderLogin(true);
+      } else {
+        renderLandingPage();
+      }
     }
   }
 }
@@ -290,7 +320,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-logout')?.addEventListener('click', async () => {
     await window.synapse.auth.signOut();
     localStorage.removeItem('has_logged_in');
-    renderLogin();
+    window.location.hash = '';
+    renderLandingPage();
   });
 
   // Resource indicator loop
@@ -428,23 +459,40 @@ async function renderDashboard() {
               <span class="rail-node ${['COMPLETED', 'VALIDATING'].includes(m.status) ? 'active-green' : ''}">Validated</span>
               <span class="rail-node ${m.status === 'COMPLETED' ? 'active-green' : ''}">Dispatched</span>
             </div>
+                       <div style="margin-top: 12px; border-top: 1px dashed var(--hairline); padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                ${m.transcriptRaw || m.status === 'PENDING' ? `
+                  <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="toggleScript(${index})">Toggle Transcribed Script</button>
+                ` : ''}
+              </div>
+              <button class="btn" style="padding: 4px 8px; font-size: 11px; color: var(--risk-red); border-color: rgba(198,69,69,0.2); background: transparent;" onclick="deleteMeeting('${m.id}')">Delete</button>
+            </div>
             
-            ${m.transcriptRaw || ['PENDING', 'COMPLETED', 'TRANSCRIBING', 'ANALYZING', 'VALIDATING'].includes((m.status || '').toUpperCase()) ? `
-              <div style="margin-top: 12px; border-top: 1px dashed var(--hairline); padding-top: 10px;">
-                <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="toggleScript(${index})">Toggle Transcribed Script</button>
-                <div id="script-block-${index}" style="display: none; margin-top: 10px; background: var(--surface-soft); padding: 12px; border-radius: var(--r-md); font-size: 12.5px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-family: inherit; color: var(--body); border: 1px solid var(--hairline);">
-                  ${m.transcriptRaw || "(Processing audio transcript...)"}
-                </div>
+            ${m.transcriptRaw || m.status === 'PENDING' ? `
+              <div id="script-block-${index}" style="display: none; margin-top: 10px; background: var(--surface-soft); padding: 12px; border-radius: var(--r-md); font-size: 12.5px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; font-family: inherit; color: var(--body); border: 1px solid var(--hairline);">
+                ${m.transcriptRaw || "(Processing audio transcript...) Preview:\nUser A: Let's finalize the Q3 launch plan. I will complete the API integration docs by Friday. User B, can you verify the security audit logs setting before then?\nUser B: Yes, I will do that by Thursday."}
               </div>
             ` : ''}
           </div>
         `).join('');
-
-        // Expose toggle helper
+ 
+        // Expose toggle and delete helper
         (window as any).toggleScript = (idx: number) => {
           const el = document.getElementById('script-block-' + idx);
           if (el) {
             el.style.display = el.style.display === 'none' ? 'block' : 'none';
+          }
+        };
+
+        (window as any).deleteMeeting = async (meetingId: string) => {
+          if (confirm('Are you sure you want to delete this meeting and all its commitments?')) {
+            try {
+              await window.synapse.meetings.delete(meetingId);
+              await renderDashboard();
+            } catch (err) {
+              alert('Failed to delete meeting');
+              console.error(err);
+            }
           }
         };
       }
@@ -481,13 +529,13 @@ function renderUpload() {
         </div>
       </div>
 
-        <div id="upload-status" class="flat-panel" style="margin-top: 24px; display: none; background: var(--surface-dark-elevated); border: 1px solid rgba(255,255,255,0.05); padding: 20px;">
-          <h3 style="color: var(--on-dark); margin-bottom: 4px;">Pipeline Progress</h3>
-          <div style="background: rgba(255, 255, 255, 0.08); height: 8px; border-radius: var(--r-pill); margin: 16px 0; overflow: hidden; position: relative; border: 1px solid rgba(255, 255, 255, 0.03);">
+        <div id="upload-status" class="flat-panel" style="margin-top: 24px; display: none; background: var(--canvas); border: 1px solid var(--hairline); padding: 20px;">
+          <h3 style="color: var(--ink); margin-bottom: 4px;">Pipeline Progress</h3>
+          <div style="background: var(--surface-soft); height: 8px; border-radius: var(--r-pill); margin: 16px 0; overflow: hidden; position: relative; border: 1px solid var(--hairline);">
             <div id="progress-bar" style="background: linear-gradient(90deg, var(--primary) 0%, #ff9e7d 100%); width: 0%; height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px rgba(204, 120, 92, 0.5);"></div>
           </div>
-          <p id="progress-status-msg" style="font-size: 13.5px; color: var(--on-dark-soft); display: flex; align-items: center; gap: 8px;">
-            <span class="spinner" style="width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+          <p id="progress-status-msg" style="font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 8px;">
+            <span class="spinner" style="width: 12px; height: 12px; border: 2px solid var(--hairline); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
             Initiating transcription...
           </p>
         </div>
@@ -584,16 +632,22 @@ function renderUpload() {
       const pBar = document.getElementById('progress-bar');
       const statusMsg = document.getElementById('progress-status-msg');
       if (pBar) pBar.style.width = `${Math.max(5, data.progress)}%`;
+      
+      const isComplete = data.stage === 'Complete' || data.stage === 'FollowUp' || data.progress === 100;
+
       if (statusMsg) {
         statusMsg.innerHTML = `
-          <span class="spinner" style="width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; ${data.stage === 'Complete' ? 'display: none;' : ''}"></span>
+          ${isComplete ? `<span style="color: var(--validated-green); font-weight: bold; margin-right: 6px;">✓</span>` : `<span class="spinner" style="width: 12px; height: 12px; border: 2px solid var(--hairline); border-top-color: var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>`}
           [${data.stage}] ${data.message}
         `;
       }
 
-      if (data.stage === 'Complete') {
+      if (isComplete) {
         window.synapse.native.showNotification('Nexus Pipeline', 'Meeting intelligence extraction complete!');
         unsubscribe();
+        setTimeout(() => {
+          checkAuthAndNavigate('dashboard');
+        }, 2000);
       }
     });
   }
@@ -721,11 +775,11 @@ async function renderBlockerWeb() {
 
     if (blockers.length === 0) {
       container.innerHTML = `
-        <div style="display: flex; justify-content: center; background: #080C10; border: 1px solid var(--border-color); border-radius: 4px; padding: 60px; text-align: center;">
+        <div style="display: flex; justify-content: center; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 60px; text-align: center;">
           <div>
-            <div style="font-size: 48px; margin-bottom: 12px;">✓</div>
-            <p style="color: var(--validated-green); font-size: 16px;">No blockers detected.</p>
-            <p style="color: #8892B0; font-size: 13px; margin-top: 8px;">All tracked commitments are on track.</p>
+            <div style="font-size: 48px; margin-bottom: 12px; color: var(--validated-green);">✓</div>
+            <p style="color: var(--validated-green); font-size: 16px; font-weight: 600;">No blockers detected.</p>
+            <p style="color: var(--muted); font-size: 13px; margin-top: 8px;">All tracked commitments are on track.</p>
           </div>
         </div>
       `;
@@ -739,33 +793,33 @@ async function renderBlockerWeb() {
 
     const nodes = blockers.map((b, i) => `
       <g>
-        ${i > 0 ? `<line x1="${cx(i - 1)}" y1="${cy}" x2="${cx(i)}" y2="${cy}" stroke="#1E293B" stroke-width="2"/>` : ''}
+        ${i > 0 ? `<line x1="${cx(i - 1)}" y1="${cy}" x2="${cx(i)}" y2="${cy}" stroke="var(--hairline)" stroke-width="2"/>` : ''}
         <circle cx="${cx(i)}" cy="${cy}" r="14" fill="${b.status?.toUpperCase() === 'BLOCKED' ? 'var(--risk-red)' :
         b.status?.toUpperCase() === 'OVERDUE' ? 'var(--risk-red)' :
           'var(--flagged-amber)'
       }"/>
-        <text x="${cx(i)}" y="${cy + 30}" fill="#EDEAE3" font-size="10" text-anchor="middle" style="max-width:100px">
+        <text x="${cx(i)}" y="${cy + 30}" fill="var(--ink)" font-size="10" text-anchor="middle" style="max-width:100px">
           ${(b.description || b.title || 'Blocker').slice(0, 20)}${(b.description || '').length > 20 ? '…' : ''}
         </text>
-        <text x="${cx(i)}" y="${cy + 43}" fill="#8892B0" font-size="9" text-anchor="middle">${b.meetingTitle?.slice(0, 18) || ''}</text>
+        <text x="${cx(i)}" y="${cy + 43}" fill="var(--muted)" font-size="9" text-anchor="middle">${b.meetingTitle?.slice(0, 18) || ''}</text>
       </g>
     `).join('');
 
     container.innerHTML = `
-      <div style="overflow-x: auto; background: #080C10; border: 1px solid var(--border-color); border-radius: 4px; padding: 40px;">
+      <div style="overflow-x: auto; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 40px;">
         <svg width="${svgWidth}" height="200" style="overflow: visible;">
           ${nodes}
         </svg>
       </div>
       <div style="margin-top: 16px;">
         ${blockers.map(b => `
-          <div class="flat-panel" style="margin-bottom: 10px; background: #1A1310; border-color: ${b.status?.toUpperCase() === 'BLOCKED' ? 'var(--risk-red)' : 'var(--flagged-amber)'}; padding: 12px 16px;">
+          <div class="flat-panel" style="margin-bottom: 10px; background: var(--surface-soft); border-color: ${b.status?.toUpperCase() === 'BLOCKED' ? 'var(--risk-red)' : 'var(--flagged-amber)'}; padding: 12px 16px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <strong style="color: ${b.status?.toUpperCase() === 'BLOCKED' ? 'var(--risk-red)' : 'var(--flagged-amber)'}">${b.status?.toUpperCase()}</strong>
-              <span style="font-size: 11px; color: #8892B0;">${b.meetingTitle}</span>
+              <span style="font-size: 11px; color: var(--muted);">${b.meetingTitle}</span>
             </div>
-            <p style="margin: 6px 0; font-size: 14px;">${b.description || b.title || 'No description'}</p>
-            <p style="font-size: 12px; color: #8892B0; margin: 0;">Assignee: ${b.assignee || b.assigneeName || 'Unassigned'}</p>
+            <p style="margin: 6px 0; font-size: 14px; color: var(--ink);">${b.description || b.title || 'No description'}</p>
+            <p style="font-size: 12px; color: var(--muted); margin: 0;">Assignee: ${b.assignee || b.assigneeName || 'Unassigned'}</p>
           </div>
         `).join('')}
       </div>
@@ -827,7 +881,8 @@ function renderAskSynapse() {
   });
 }
 
-function renderLogin() {
+function renderLogin(startAsSignUp: boolean = false) {
+  setContentAreaStyle('landing');
   const sidebar = document.getElementById('sidebar');
   if (sidebar) sidebar.style.display = 'none';
 
@@ -862,7 +917,17 @@ function renderLogin() {
   const submitBtn = document.getElementById('btn-auth-submit') as HTMLButtonElement;
   const toggleLink = document.getElementById('auth-toggle') as HTMLElement;
 
-  let isSignUpMode = false;
+  let isSignUpMode = startAsSignUp;
+
+  if (isSignUpMode) {
+    titleEl.innerText = "Create Your Account";
+    submitBtn.innerText = "Sign Up";
+    toggleLink.innerText = "Already have an account? Sign In";
+  } else {
+    titleEl.innerText = "Sign In to Nexus";
+    submitBtn.innerText = "Sign In";
+    toggleLink.innerText = "Don't have an account? Sign Up";
+  }
 
   toggleLink.addEventListener('click', (e) => {
     e.preventDefault();
@@ -871,10 +936,12 @@ function renderLogin() {
       titleEl.innerText = "Create Your Account";
       submitBtn.innerText = "Sign Up";
       toggleLink.innerText = "Already have an account? Sign In";
+      window.location.hash = 'signup';
     } else {
       titleEl.innerText = "Sign In to Nexus";
       submitBtn.innerText = "Sign In";
       toggleLink.innerText = "Don't have an account? Sign Up";
+      window.location.hash = 'login';
     }
   });
 
@@ -913,6 +980,393 @@ function renderLogin() {
       submitBtn.disabled = false;
     }
   });
+}
+
+function renderLandingPage() {
+  setContentAreaStyle('landing');
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) sidebar.style.display = 'none';
+
+  contentArea.innerHTML = `
+    <div class="relative w-full min-h-screen text-black select-none font-body bg-canvas">
+      <!-- Fixed Background Video -->
+      <video id="bg-video" class="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none" style="object-position: 70% center;" muted playsinline preload="auto">
+        <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260530_042513_df96a13b-6155-4f6e-8b93-c9dee66fba08.mp4" type="video/mp4">
+      </video>
+      
+      <!-- Gradient Overlay to blend with UI -->
+      <div class="fixed inset-0 bg-gradient-to-tr from-canvas/95 via-canvas/60 to-transparent z-0 pointer-events-none"></div>
+
+      <!-- Navbar -->
+      <header class="fixed top-0 left-0 w-full landing-container-padding py-5 flex justify-between items-center z-30 bg-transparent">
+        <!-- Logo -->
+        <div class="flex items-center gap-3">
+          <span class="text-[21px] sm:text-[26px] font-heading tracking-tight text-ink font-bold select-none">Nexus AI®</span>
+          <span class="text-[25px] sm:text-[30px] text-ink select-none font-bold tracking-tighter" style="letter-spacing: -0.02em;">✳︎</span>
+        </div>
+
+        <!-- Desktop Nav Links -->
+        <nav class="hidden md:flex items-center text-[23px] text-ink font-normal">
+          <a href="#docs" class="hover:opacity-60 transition-opacity">Docs</a><span class="mx-1 select-none">, </span>
+          <a href="#features" class="hover:opacity-60 transition-opacity">Features</a><span class="mx-1 select-none">, </span>
+          <a href="#security" class="hover:opacity-60 transition-opacity">Security</a><span class="mx-1 select-none">, </span>
+          <a href="#integrations" class="hover:opacity-60 transition-opacity">Integrations</a>
+        </nav>
+
+        <!-- Desktop CTA -->
+        <div class="hidden md:flex items-center gap-6">
+          <a href="#login" class="text-[20px] text-ink font-normal hover:opacity-60 transition-opacity">Sign In</a>
+          <a href="#signup" class="text-[20px] text-ink font-normal hover:opacity-60 transition-opacity">Sign Up</a>
+        </div>
+
+        <!-- Mobile Hamburger -->
+        <button id="mobile-menu-btn" class="md:hidden flex flex-col justify-center items-center gap-[5px] w-8 h-8 z-40 bg-transparent border-none cursor-pointer">
+          <span class="w-6 h-[2px] bg-black transition-all duration-300 transform origin-center"></span>
+          <span class="w-6 h-[2px] bg-black transition-all duration-300"></span>
+          <span class="w-6 h-[2px] bg-black transition-all duration-300 transform origin-center"></span>
+        </button>
+      </header>
+
+      <!-- Mobile Menu Overlay -->
+      <div id="mobile-menu-overlay" class="fixed inset-0 bg-white/95 backdrop-blur-sm hidden flex-col justify-center items-start px-12 gap-8 z-20 transition-all duration-300 opacity-0 pointer-events-none">
+        <a href="#docs" class="mobile-nav-link text-[32px] font-medium text-black">Docs</a>
+        <a href="#features" class="mobile-nav-link text-[32px] font-medium text-black">Features</a>
+        <a href="#security" class="mobile-nav-link text-[32px] font-medium text-black">Security</a>
+        <a href="#integrations" class="mobile-nav-link text-[32px] font-medium text-black">Integrations</a>
+        <div class="h-[1px] w-full bg-black/10 my-2"></div>
+        <a href="#login" class="mobile-nav-link text-[32px] font-medium text-black">Sign In</a>
+        <a href="#signup" class="mobile-nav-link text-[32px] font-medium text-black">Sign Up</a>
+      </div>
+
+      <!-- Scrollable Container -->
+      <div class="absolute inset-0 overflow-y-auto z-10 flex flex-col justify-between scroll-smooth" id="landing-scroll-container">
+        <!-- Hero Screen -->
+        <section class="w-full min-h-screen flex flex-col justify-end md:justify-center pb-32 md:pb-0 landing-container-padding overflow-hidden relative">
+          <div class="max-w-2xl relative z-10 flex flex-col mt-36 sm:mt-48 mb-20 gap-8">
+            
+            <!-- Typewriter Text -->
+            <p id="typewriter-text" class="text-black mb-10 sm:mb-12 font-normal min-h-[70px] relative" style="font-size: clamp(20px, 4.5vw, 30px); line-height: 1.35;"></p>
+
+            <!-- Action Pill Buttons -->
+            <div id="action-pills" class="flex flex-wrap gap-x-4 gap-y-4 opacity-0 translate-y-[8px] transition-all duration-[400ms] ease-out">
+              <button class="landing-pill">Upload Meeting Audio</button>
+              <button class="landing-pill">Explore Semantic Memory</button>
+              <button class="landing-pill">Review Commitment Court</button>
+              <button class="landing-pill">Check Node Health</button>
+            </div>
+
+            <!-- Portal CTA Buttons (Sign In / Sign Up) -->
+            <div id="auth-pills" class="flex flex-wrap items-center mt-12 gap-6 opacity-0 translate-y-[8px] transition-all duration-[400ms] ease-out">
+              <a href="#login" class="landing-auth-btn-primary">
+                Sign In to Nexus
+              </a>
+              <a href="#signup" class="landing-auth-btn-secondary">
+                Create Account
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 2: Tech Stack Integration section (Transparent Background) -->
+        <section class="w-full min-h-screen flex flex-col justify-center py-24 landing-container-padding bg-transparent relative z-10 border-t border-black/10">
+          <div class="max-w-5xl mx-auto w-full">
+            <div class="mb-20 subsystems-title-gap">
+              <span class="text-[15px] font-bold tracking-widest text-primary uppercase">Integration Layer</span>
+              <h2 class="text-4xl sm:text-5xl font-heading tracking-tight mt-2 font-bold text-ink mb-6">Core Intelligent Subsystems</h2>
+              <p class="text-muted text-lg leading-relaxed mt-4 max-w-2xl">Nexus couples state-of-the-art vector memory, security safeguards, and agentic workflows to deliver production-grade meeting intelligence.</p>
+            </div>
+
+            <!-- integration boxes with gap and clean modern fonts -->
+            <div class="grid grid-cols-1 md:grid-cols-3 subsystems-grid-gap pl-4 sm:pl-8">
+              <!-- Mastra -->
+              <div class="border border-black/10 rounded-xl p-8 bg-white/90 backdrop-blur shadow-sm flex flex-col justify-between hover:border-primary/50 transition-all duration-300 min-h-[300px]">
+                <div>
+                  <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                    <span class="text-primary font-bold text-xl">M</span>
+                  </div>
+                  <h3 class="text-2xl font-bold text-ink mb-3 tracking-tight font-body">Mastra Orchestration</h3>
+                  <p class="text-[15px] text-muted leading-relaxed font-body">Mastra orchestrates our multi-agent workflows, managing transcript summaries, action item extraction, and commitment verification.</p>
+                </div>
+                <div class="mt-8 text-xs font-mono font-semibold tracking-wider text-primary bg-primary/5 px-3 py-1.5 rounded-md w-fit">
+                  Active Workflow Node
+                </div>
+              </div>
+
+              <!-- Qdrant -->
+              <div class="border border-black/10 rounded-xl p-8 bg-white/90 backdrop-blur shadow-sm flex flex-col justify-between hover:border-indigo-500/50 transition-all duration-300 min-h-[300px]">
+                <div>
+                  <div class="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center mb-6">
+                    <span class="text-indigo-500 font-bold text-xl">Q</span>
+                  </div>
+                  <h3 class="text-2xl font-bold text-ink mb-3 tracking-tight font-body">Qdrant Vector DB</h3>
+                  <p class="text-[15px] text-muted leading-relaxed font-body">Qdrant powers high-performance semantic search, indexing meeting memories for sub-millisecond context retrieval.</p>
+                </div>
+                <div class="mt-8 text-xs font-mono font-semibold tracking-wider text-indigo-500 bg-indigo-500/5 px-3 py-1.5 rounded-md w-fit">
+                  Integrated Memory Store
+                </div>
+              </div>
+
+              <!-- Enkrypt AI -->
+              <div class="border border-black/10 rounded-xl p-8 bg-white/90 backdrop-blur shadow-sm flex flex-col justify-between hover:border-emerald-500/50 transition-all duration-300 min-h-[300px]">
+                <div>
+                  <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
+                    <span class="text-emerald-500 font-bold text-xl">E</span>
+                  </div>
+                  <h3 class="text-2xl font-bold text-ink mb-3 tracking-tight font-body">Enkrypt AI Safety</h3>
+                  <p class="text-[15px] text-muted leading-relaxed font-body">Enkrypt AI secures all LLM interactions, validating outputs to prevent hallucinations and compliance violations.</p>
+                </div>
+                <div class="mt-8 text-xs font-mono font-semibold tracking-wider text-emerald-500 bg-emerald-500/5 px-3 py-1.5 rounded-md w-fit">
+                  Security Compliance Guard
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Slide 3: Problems vs Differences section (Transparent Background) -->
+        <section class="w-full min-h-screen flex flex-col justify-center py-24 landing-container-padding bg-transparent relative z-10 border-t border-black/10">
+          <div class="max-w-5xl mx-auto w-full">
+            <div class="mb-20 text-center">
+              <span class="text-[15px] font-bold tracking-widest text-primary uppercase">The Paradigm Shift</span>
+              <h2 class="text-5xl sm:text-6xl font-heading tracking-tight mt-2 font-bold text-ink">What Makes Nexus Different?</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-16 md:gap-24 pl-4 sm:pl-8">
+              <!-- Left Column: Existing Problems -->
+              <div class="flex flex-col gap-8">
+                <h3 class="text-3xl font-bold text-red-700 flex items-center gap-3 border-b border-red-700/10 pb-4">
+                  <span>✕</span> Existing Problems
+                </h3>
+                <ul class="flex flex-col gap-6">
+                  <li class="flex gap-4">
+                    <span class="text-red-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Clunky, Fragmented Tooling</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal">Teams scramble between transcription tools, note apps, and task managers, fracturing vital context.</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-4">
+                    <span class="text-red-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Security & Compliance Hazards</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal">Uploading private client discussions to external clouds risks PII leakage and violates data policies.</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-4">
+                    <span class="text-red-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Hallucinations & Idle Tasks</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal">Generic summaries invent facts while key commitments fade into forgotten text files.</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-4">
+                    <span class="text-red-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Rigid Keyword Search</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal">Traditional archives require you to recall exact phrases to retrieve past decisions.</p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+
+              <!-- Right Column: What's New -->
+              <div class="flex flex-col gap-8">
+                <h3 class="text-3xl font-bold text-emerald-700 flex items-center gap-3 border-b border-emerald-700/10 pb-4">
+                  <span>✓</span> What's New in Nexus
+                </h3>
+                <ul class="flex flex-col gap-6">
+                  <li class="flex gap-4">
+                    <span class="text-emerald-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Unified Offline-First Node</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal font-normal">Mastra coordinates local pipelines, synchronizing all actions, documents, and transcripts under one roof.</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-4">
+                    <span class="text-emerald-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Trust-Metered Security Screening</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal font-normal">Enkrypt AI screens all inputs and outputs for PII leaks, compliance, and hallucination alerts instantly.</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-4">
+                    <span class="text-emerald-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Automated Commitment Court</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal font-normal">An accountable verification workflow extracts, monitors, and validates commitments automatically.</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-4">
+                    <span class="text-emerald-700 font-bold text-2xl">•</span>
+                    <div>
+                      <h4 class="font-bold text-ink text-xl">Instant Semantic Memory Search</h4>
+                      <p class="text-[16px] text-muted mt-2 leading-relaxed font-body font-normal font-normal">Powered by Qdrant vector memory, you can query meeting memories using conversational questions.</p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Experience CTA with generous gap and larger buttons -->
+            <div class="mt-32 text-center border-t border-black/10 pt-16">
+              <h3 class="text-2xl sm:text-3xl font-heading font-semibold text-ink mb-6">Experience the Nexus AI intelligence console today.</h3>
+              <div class="mt-8 flex justify-center gap-6">
+                <a href="#login" class="landing-auth-btn-primary">
+                  Sign In to Nexus
+                </a>
+                <a href="#signup" class="landing-auth-btn-secondary">
+                  Register Account
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Footer with larger typography -->
+        <footer class="w-full py-10 text-center text-sm sm:text-base text-muted/80 relative z-10 bg-canvas border-t border-black/10">
+          <p>© 2026 Nexus AI® Console. All rights reserved. Powered by Mastra, Qdrant, and Enkrypt AI.</p>
+        </footer>
+      </div>
+    </div>
+  `;
+
+  // Background Video Mouse Scrub Handling
+  const video = document.getElementById('bg-video') as HTMLVideoElement;
+  let prevX = 0;
+  let targetTime = 0;
+  let isSeeking = false;
+  let pendingSeek = false;
+
+  function performSeek() {
+    isSeeking = true;
+    video.currentTime = targetTime;
+  }
+
+  if (video) {
+    video.addEventListener('seeked', () => {
+      isSeeking = false;
+      if (pendingSeek) {
+        pendingSeek = false;
+        performSeek();
+      }
+    });
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!video.duration) return;
+      const currentX = e.clientX;
+      if (prevX === 0) {
+        prevX = currentX;
+        return;
+      }
+      const delta = currentX - prevX;
+      prevX = currentX;
+
+      const offset = (delta / window.innerWidth) * 0.8 * video.duration;
+      targetTime = Math.max(0, Math.min(video.duration, targetTime + offset));
+
+      if (!isSeeking) {
+        performSeek();
+      } else {
+        pendingSeek = true;
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    // Cleanup event listener when landing page is destroyed/unloaded
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById('bg-video')) {
+        window.removeEventListener('mousemove', onMouseMove);
+        observer.disconnect();
+      }
+    });
+    observer.observe(contentArea, { childList: true });
+  }
+
+  // Navbar Hamburger & Mobile Overlay Setup
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const overlay = document.getElementById('mobile-menu-overlay');
+  
+  if (menuBtn && overlay) {
+    let isOpen = false;
+    menuBtn.addEventListener('click', () => {
+      isOpen = !isOpen;
+      const bars = menuBtn.querySelectorAll('span');
+      if (isOpen) {
+        overlay.classList.remove('hidden');
+        setTimeout(() => {
+          overlay.classList.remove('opacity-0', 'pointer-events-none');
+        }, 10);
+        
+        bars[0].classList.add('rotate-45', 'translate-y-[7px]');
+        bars[1].classList.add('opacity-0');
+        bars[2].classList.add('-rotate-45', '-translate-y-[7px]');
+      } else {
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+        }, 300);
+
+        bars[0].classList.remove('rotate-45', 'translate-y-[7px]');
+        bars[1].classList.remove('opacity-0');
+        bars[2].classList.remove('-rotate-45', '-translate-y-[7px]');
+      }
+    });
+
+    overlay.querySelectorAll('.mobile-nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        isOpen = false;
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+        }, 300);
+        const bars = menuBtn.querySelectorAll('span');
+        bars[0].classList.remove('rotate-45', 'translate-y-[7px]');
+        bars[1].classList.remove('opacity-0');
+        bars[2].classList.remove('-rotate-45', '-translate-y-[7px]');
+      });
+    });
+  }
+
+  // Typewriter Animation (Simple text welcome)
+  const typewriterTextEl = document.getElementById('typewriter-text');
+  const typewriterText = "Welcome to Nexus AI. Your secure, offline-first meeting intelligence console. What are we analyzing today?";
+  let typewriterIdx = 0;
+  
+  if (typewriterTextEl) {
+    // Append cursor span first
+    typewriterTextEl.innerHTML = '<span id="typewriter-content"></span><span id="typewriter-cursor" class="inline-block w-[2px] h-[1.1em] bg-black align-middle ml-[2px] cursor-blink"></span>';
+    const contentSpan = document.getElementById('typewriter-content') as HTMLSpanElement;
+    const cursorSpan = document.getElementById('typewriter-cursor') as HTMLSpanElement;
+
+    setTimeout(() => {
+      const interval = setInterval(() => {
+        if (typewriterIdx < typewriterText.length) {
+          contentSpan.textContent += typewriterText.charAt(typewriterIdx);
+          typewriterIdx++;
+        } else {
+          clearInterval(interval);
+          if (cursorSpan) {
+            cursorSpan.remove();
+          }
+        }
+      }, 38);
+    }, 600);
+  }
+
+  // Action Pills & Auth Pills Entry Animations
+  const actionPills = document.getElementById('action-pills');
+  const authPills = document.getElementById('auth-pills');
+  
+  setTimeout(() => {
+    if (actionPills) {
+      actionPills.classList.remove('opacity-0', 'translate-y-[8px]');
+      actionPills.classList.add('opacity-100', 'translate-y-0');
+    }
+    if (authPills) {
+      authPills.classList.remove('opacity-0', 'translate-y-[8px]');
+      authPills.classList.add('opacity-100', 'translate-y-0');
+    }
+  }, 400);
 }
 
 // Check and render onboarding modal if consent not yet granted/handled

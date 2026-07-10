@@ -36,7 +36,7 @@ if (!globalThis.crypto) {
 
 // Import direct in-process services from backend
 import { prisma } from '../backend/src/services/prisma';
-import { meetingPipeline } from '../backend/src/mastra/workflows/meetingPipeline';
+import { mastra } from '../backend/src/mastra';
 import { searchSimilar } from '../backend/src/services/qdrant';
 import { checkOllamaStatus, getLLMModel } from '../backend/src/services/llmProvider';
 import { initializeQdrantCollection } from '../backend/src/services/qdrant';
@@ -269,7 +269,7 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
 
   setImmediate(async () => {
     try {
-      const run = meetingPipeline.createRun();
+      const run = (mastra.getWorkflow('meetingPipeline') as any).createRun();
       const runResult = await run.start({
         triggerData: {
           meetingId: meetingId,
@@ -380,7 +380,7 @@ function registerIpcHandlers() {
         });
 
         memberRecord = await prisma.workspaceMember.upsert({
-          where: { workspaceId_userId: { workspaceId: wsId, userId } },
+          where: { workspace_members_uniq: { workspaceId: wsId, userId } },
           update: { role: 'LEAD' },
           create: {
             workspaceId: wsId,
@@ -399,6 +399,7 @@ function registerIpcHandlers() {
         });
       }
 
+      if (!memberRecord) return null;
       return memberRecord.workspace;
     } catch (e) {
       console.error('Failed to get workspace:', e);
@@ -451,7 +452,7 @@ function registerIpcHandlers() {
 
       // Add WorkspaceMember membership
       const member = await prisma.workspaceMember.upsert({
-        where: { workspaceId_userId: { workspaceId: wsId, userId: targetUser.id } },
+        where: { workspace_members_uniq: { workspaceId: wsId, userId: targetUser.id } },
         update: { role: dbRole },
         create: {
           workspaceId: wsId,
@@ -514,6 +515,20 @@ function registerIpcHandlers() {
         where: { id },
         data: dataToUpdate,
       });
+      return { success: true };
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.MEETINGS.DELETE, async (event, id) => {
+    try {
+      await prisma.actionItem.deleteMany({ where: { meetingId: id } });
+      await prisma.decision.deleteMany({ where: { meetingId: id } });
+      await prisma.risk.deleteMany({ where: { meetingId: id } });
+      await prisma.executionPlan.deleteMany({ where: { meetingId: id } });
+      await prisma.meeting.delete({ where: { id } });
       return { success: true };
     } catch (e) {
       console.error(e);
@@ -707,7 +722,7 @@ Answer concisely and clearly. Reference specific meeting details if available.
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS.OLLAMA_PULL, async (event, model) => {
     try {
-      fetch('http://localhost:11434/api/pull', {
+      fetch('http://127.0.0.1:11434/api/pull', {
         method: 'POST',
         body: JSON.stringify({ name: model || 'qwen2.5:14b', stream: false }),
       }).catch(e => console.error('Async model pull failed', e));

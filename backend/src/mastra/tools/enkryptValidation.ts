@@ -18,17 +18,29 @@ import { logger } from '../../config/logger';
 const MAX_REFINEMENT_ITERATIONS = 3;
 const MIN_CONFIDENCE_THRESHOLD = 0.75;
 
-// Enkrypt AI client — routes through their guardrail proxy
-const enkryptClient = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-  baseURL: env.ENKRYPT_AI_BASE_URL,
-  defaultHeaders: {
-    'apikey': env.ENKRYPT_AI_API_KEY,
-  },
-});
+let enkryptClientInstance: OpenAI | null = null;
+function getEnkryptClient() {
+  if (!enkryptClientInstance) {
+    const key = env.OPENAI_API_KEY || 'dummy-key-offline';
+    enkryptClientInstance = new OpenAI({
+      apiKey: key,
+      baseURL: env.ENKRYPT_AI_BASE_URL,
+      defaultHeaders: {
+        'apikey': env.ENKRYPT_AI_API_KEY || '',
+      },
+    });
+  }
+  return enkryptClientInstance;
+}
 
-// Direct OpenAI client for refinement without proxy
-const openaiDirect = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+let openaiDirectInstance: OpenAI | null = null;
+function getOpenaiDirect() {
+  if (!openaiDirectInstance) {
+    const key = env.OPENAI_API_KEY || 'dummy-key-offline';
+    openaiDirectInstance = new OpenAI({ apiKey: key });
+  }
+  return openaiDirectInstance;
+}
 
 const ActionItemSchema = z.object({
   id: z.string(),
@@ -79,7 +91,7 @@ Respond ONLY with this JSON:
 
   try {
     // Route through Enkrypt AI proxy
-    const response = await enkryptClient.chat.completions.create({
+    const response = await getEnkryptClient().chat.completions.create({
       model: env.ENKRYPT_AI_MODEL || 'gpt-4o',
       messages: [
         { role: 'system', content: 'You are a precise JSON-only hallucination auditor.' },

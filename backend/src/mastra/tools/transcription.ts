@@ -12,7 +12,16 @@ import fs from 'fs';
 import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 
-const deepgram = createClient(env.DEEPGRAM_API_KEY);
+let deepgramClient: any = null;
+function getDeepgramClient() {
+  if (!deepgramClient) {
+    if (!env.DEEPGRAM_API_KEY) {
+      throw new Error('DEEPGRAM_API_KEY is not configured in environment variables');
+    }
+    deepgramClient = createClient(env.DEEPGRAM_API_KEY);
+  }
+  return deepgramClient;
+}
 
 export const transcriptionTool = createTool({
   id: 'transcription',
@@ -43,7 +52,7 @@ export const transcriptionTool = createTool({
     try {
       const audioBuffer = fs.readFileSync(audioFilePath);
 
-      const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+      const { result, error } = await getDeepgramClient().listen.prerecorded.transcribeFile(
         audioBuffer,
         {
           model: 'nova-2',
@@ -84,7 +93,7 @@ export const transcriptionTool = createTool({
 
       const speakers = Array.from(speakerMap.entries()).map(([speaker, speakerWords]) => ({
         speaker,
-        words: speakerWords.map(w => ({
+        words: speakerWords.map((w: any) => ({
           word: w.word ?? '',
           start: w.start ?? 0,
           end: w.end ?? 0,

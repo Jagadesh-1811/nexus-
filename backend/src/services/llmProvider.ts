@@ -1,6 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 // Define model options
 export const MODELS = {
@@ -40,7 +40,10 @@ export function getLLMModel(provider: 'ollama' | 'openai' = 'ollama', modelName?
  * Perform a simple check if Ollama is running
  */
 export async function checkOllamaStatus(): Promise<boolean> {
-  const url = env.OLLAMA_BASE_URL || 'http://localhost:11434/api/tags';
+  const baseURL = env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
+  const url = baseURL.endsWith('/v1')
+    ? baseURL.substring(0, baseURL.length - 3) + '/api/tags'
+    : baseURL.replace(/\/+$/, '') + '/api/tags';
   try {
     const res = await fetch(url);
     if (res.ok) {

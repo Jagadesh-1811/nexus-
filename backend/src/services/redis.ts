@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 let redisInstance: Redis | null = null;
 
@@ -10,26 +10,18 @@ export function getRedis(): Redis {
       maxRetriesPerRequest: null,
       retryStrategy: (times) => {
         if (times > 10) {
-          // Silent retry strategy to avoid terminal spam
-          return 5000;
+          logger.error('Redis retry limit exceeded');
+          return null;
         }
         return Math.min(times * 100, 3000);
       },
       enableReadyCheck: true,
-      lazyConnect: false,
+      lazyConnect: true,
     });
 
-    let silentErrorLogged = false;
-    redisInstance.on('connect', () => {
-      logger.info('Redis connected');
-      silentErrorLogged = false;
-    });
-    redisInstance.on('error', (err) => {
-      if (!silentErrorLogged) {
-        logger.info('Redis offline (rate limiter running in fallback memory mode)', { error: err.message });
-        silentErrorLogged = true;
-      }
-    });
+    redisInstance.on('connect', () => logger.info('Redis connected'));
+    redisInstance.on('error', (err) => logger.error('Redis error', { error: err.message }));
+    redisInstance.on('reconnecting', () => logger.warn('Redis reconnecting...'));
   }
   return redisInstance;
 }

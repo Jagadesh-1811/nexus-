@@ -1,11 +1,11 @@
-import { prisma } from './prisma.js';
-import { getQueuedMeetings, dequeueMeeting, QueuedMeeting } from './localQueue.js';
-import { upsertVectors } from './qdrant.js';
+import { prisma } from './prisma';
+import { getQueuedMeetings, dequeueMeeting, QueuedMeeting } from './localQueue';
+import { upsertVectors } from './qdrant';
 import { embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
-import { encrypt } from '../security/crypto.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
+import { encrypt } from '../security/crypto';
 import { v4 as uuidv4 } from 'uuid';
 
 let isSyncing = false;
@@ -33,7 +33,7 @@ async function syncMeetingToCloud(meeting: QueuedMeeting): Promise<void> {
   const encryptedTranscript = encrypt(meeting.transcript);
 
   // 1. Transaction to write relational data to Supabase
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     // Ensure user exists (in case user was created locally or is being synced)
     const userExists = await tx.user.findUnique({ where: { id: meeting.userId } });
     if (!userExists) {

@@ -5,10 +5,10 @@
  */
 
 import { Mastra } from '@mastra/core';
-import { meetingAnalystAgent } from './agents/meetingAnalyst.js';
-import { followUpAgent } from './agents/followUpAgent.js';
-import { meetingPipeline } from './workflows/meetingPipeline.js';
-import { logger } from '../config/logger.js';
+import { meetingAnalystAgent } from './agents/meetingAnalyst';
+import { followUpAgent } from './agents/followUpAgent';
+import { meetingPipeline } from './workflows/meetingPipeline';
+import { logger } from '../config/logger';
 
 export const mastra: Mastra = new Mastra({
   agents: {

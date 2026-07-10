@@ -8,10 +8,10 @@
 
 import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai';
-import { transcriptionTool } from '../tools/transcription.js';
-import { queryMemoryTool, indexMemoryTool } from '../tools/vectorMemory.js';
-import { enkryptValidationTool } from '../tools/enkryptValidation.js';
-import { env } from '../../config/env.js';
+import { transcriptionTool } from '../tools/transcription';
+import { queryMemoryTool, indexMemoryTool } from '../tools/vectorMemory';
+import { enkryptValidationTool } from '../tools/enkryptValidation';
+import { env } from '../../config/env';
 
 const SYSTEM_PROMPT = `You are Synapse, an elite AI meeting intelligence analyst. Your role is to analyze meeting transcripts with surgical precision and extract actionable intelligence.
 

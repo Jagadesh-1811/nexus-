@@ -11,10 +11,10 @@ import { openai } from '@ai-sdk/openai';
 import { embed, embedMany } from 'ai';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { searchSimilar, upsertVectors } from '../../services/qdrant.js';
-import { prisma } from '../../services/prisma.js';
-import { env } from '../../config/env.js';
-import { logger } from '../../config/logger.js';
+import { searchSimilar, upsertVectors } from '../../services/qdrant';
+import { prisma } from '../../services/prisma';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
 
 async function generateEmbedding(text: string): Promise<number[]> {
   const { embedding } = await embed({

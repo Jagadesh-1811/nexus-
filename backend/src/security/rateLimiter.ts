@@ -8,86 +8,26 @@
  * - API: 60 req/min per API key
  */
 
-import rateLimit, { MemoryStore } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
-import { redis } from '../services/redis.js';
-import { logger } from '../config/logger.js';
+import { redis } from '../services/redis';
+import { logger } from '../config/logger';
 import type { Request, Response } from 'express';
+import { env } from '../config/env';
 
-class FallbackStore {
-  private redisStore: RedisStore | null = null;
-  private memoryStore: MemoryStore;
-  private prefix: string;
-
-  constructor(prefix: string) {
-    this.prefix = prefix;
-    this.memoryStore = new MemoryStore();
+function createRedisStore(prefix: string) {
+  if (env.NODE_ENV === 'development' || env.NODE_ENV === 'test') {
+    logger.info(`Using in-memory store for rate limiter: ${prefix}`);
+    return undefined;
   }
-
-  private getRedisStore(): RedisStore | null {
-    if (redis.status === 'ready') {
-      if (!this.redisStore) {
-        try {
-          this.redisStore = new RedisStore({
-            // @ts-ignore
-            client: redis,
-            prefix: `rl:${this.prefix}:`,
-            sendCommand: async (command: string, ...args: string[]) => {
-              if (redis.status !== 'ready') {
-                throw new Error('Redis not ready');
-              }
-              return redis.call(command, ...args) as Promise<any>;
-            },
-          });
-        } catch (e) {
-          logger.warn(`Failed to initialize RedisStore lazily for ${this.prefix}: ${String(e)}`);
-          return null;
-        }
-      }
-      return this.redisStore;
-    }
-    return null;
-  }
-
-  async increment(key: string) {
-    const store = this.getRedisStore();
-    if (store) {
-      try {
-        return await store.increment(key);
-      } catch (err) {
-        logger.warn(`Redis store failed for ${this.prefix}, falling back to memory store`, { error: String(err) });
-      }
-    }
-    return await this.memoryStore.increment(key);
-  }
-
-  async decrement(key: string) {
-    const store = this.getRedisStore();
-    if (store) {
-      try {
-        return await store.decrement(key);
-      } catch (err) {
-        // Ignored fallback
-      }
-    }
-    return await this.memoryStore.decrement(key);
-  }
-
-  async resetKey(key: string) {
-    const store = this.getRedisStore();
-    if (store) {
-      try {
-        return await store.resetKey(key);
-      } catch (err) {
-        // Ignored fallback
-      }
-    }
-    return await this.memoryStore.resetKey(key);
-  }
-}
-
-function createRateLimitStore(prefix: string) {
-  return new FallbackStore(prefix) as any;
+  return new RedisStore({
+    // @ts-ignore - redis client compatible
+    client: redis,
+    prefix: `rl:${prefix}:`,
+    sendCommand: async (command: string, ...args: string[]) => {
+      return redis.call(command, ...args) as Promise<any>;
+    },
+  });
 }
 
 function onLimitReached(req: Request, _res: Response) {
@@ -107,7 +47,7 @@ export const globalRateLimit = rateLimit({
   message: { error: 'Too many requests. Please try again later.', code: 'RATE_LIMIT_GLOBAL' },
   standardHeaders: true,
   legacyHeaders: false,
-  store: createRateLimitStore('global'),
+  store: createRedisStore('global') as any,
   handler: (req, res, next, options) => {
     onLimitReached(req, res);
     res.status(429).json(options.message);
@@ -121,7 +61,7 @@ export const authRateLimit = rateLimit({
   message: { error: 'Too many authentication attempts. Account temporarily locked.', code: 'RATE_LIMIT_AUTH' },
   standardHeaders: true,
   legacyHeaders: false,
-  store: createRateLimitStore('auth'),
+  store: createRedisStore('auth') as any,
   skipSuccessfulRequests: true,
   handler: (req, res, next, options) => {
     onLimitReached(req, res);
@@ -137,7 +77,7 @@ export const ingestRateLimit = rateLimit({
   message: { error: 'Ingest quota exceeded. Maximum 5 meetings per hour.', code: 'RATE_LIMIT_INGEST' },
   standardHeaders: true,
   legacyHeaders: false,
-  store: createRateLimitStore('ingest'),
+  store: createRedisStore('ingest') as any,
   keyGenerator: (req) => {
     // Key by user ID if authenticated, else by IP
     const userId = (req as any).auth?.userId;
@@ -156,7 +96,7 @@ export const apiKeyRateLimit = rateLimit({
   message: { error: 'API key rate limit exceeded. Max 60 requests/minute.', code: 'RATE_LIMIT_API_KEY' },
   standardHeaders: true,
   legacyHeaders: false,
-  store: createRateLimitStore('apikey'),
+  store: createRedisStore('apikey') as any,
   keyGenerator: (req) => {
     const apiKey = req.headers['x-api-key'] as string | undefined;
     return apiKey?.slice(0, 16) ?? req.ip ?? 'unknown';

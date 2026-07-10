@@ -1,6 +1,6 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
-import { env } from '../config/env.js';
+import { env } from '../config/env';
 
 const sensitiveFields = ['password', 'token', 'apiKey', 'secret', 'authorization', 'cookie', 'key'];
 

@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { prisma, writeAuditLog } from '../services/prisma.js';
-import { requireAuth, requireRole } from '../middleware/security.js';
-import { generateApiKey, hashApiKey } from '../security/crypto.js';
+import { prisma, writeAuditLog } from '../services/prisma';
+import { requireAuth, requireRole } from '../middleware/security';
+import { generateApiKey, hashApiKey } from '../security/crypto';
 import { z } from 'zod';
 import os from 'os';
-import { checkOllamaStatus } from '../services/llmProvider.js';
-import { logger } from '../config/logger.js';
+import { checkOllamaStatus } from '../services/llmProvider';
+import { logger } from '../config/logger';
 
 const router = Router();
 

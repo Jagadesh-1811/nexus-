@@ -1,6 +1,6 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 // ============================================================
 // Qdrant Client Singleton

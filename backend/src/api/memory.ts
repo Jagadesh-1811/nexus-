@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { embed, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { searchSimilar } from '../services/qdrant.js';
-import { requireAuth } from '../middleware/security.js';
-import { env } from '../config/env.js';
+import { searchSimilar } from '../services/qdrant';
+import { requireAuth } from '../middleware/security';
+import { env } from '../config/env';
 import { z } from 'zod';
-import { getLLMModel } from '../services/llmProvider.js';
+import { getLLMModel } from '../services/llmProvider';
 
 const router = Router();
 

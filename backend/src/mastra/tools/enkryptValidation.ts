@@ -12,8 +12,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { env } from '../../config/env.js';
-import { logger } from '../../config/logger.js';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
 
 const MAX_REFINEMENT_ITERATIONS = 3;
 const MIN_CONFIDENCE_THRESHOLD = 0.75;

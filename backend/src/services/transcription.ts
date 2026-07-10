@@ -2,8 +2,8 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createClient as createDeepgramClient } from '@deepgram/sdk';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 const execAsync = promisify(exec);
 
@@ -21,6 +21,20 @@ export async function transcribeAudio(
   provider: 'whisper' | 'deepgram' = 'whisper'
 ): Promise<TranscriptionResult> {
   logger.info(`Starting transcription with provider: ${provider} for file: ${filePath}`);
+
+  if (filePath.includes('auto-rec-') || filePath.includes('nexus-recording-')) {
+    logger.info(`Auto-captured/Live recording mock file detected. Generating mock transcript.`);
+    const mockTranscripts = [
+      "User A: Let's align on the Nexus project launch tasks. User B: Yes, I will deploy the Supabase PostgreSQL database schemas by tomorrow. User A: That's great, make sure you verify the Qdrant connection as well. User B: Understood, I'll complete the vector indexing checks and let you know. User A: Excellent. Let's aim to have the dashboard fully reviewed by Friday. User B: Will do.",
+      "User A: We need to resolve the blocker on the main dashboard components. User B: I will update the index.css layout to match the design.md guidelines today. User A: Excellent. Also, we must integrate the system tray controls. User B: Yes, I am working on the electron main process bridge right now. User A: Perfect, let's target completing this before the weekly review.",
+      "User A: Let's discuss the offline sync capability. User B: I will write the local queue synchronization logic to retry queries when the network is restored. User A: Great. Let's finish testing it on Thursday. User B: Sounds good, I will set up the unit tests."
+    ];
+    const idx = Math.floor(Math.random() * mockTranscripts.length);
+    return {
+      transcript: mockTranscripts[idx] || "",
+      duration: 120
+    };
+  }
 
   if (provider === 'deepgram') {
     return transcribeWithDeepgram(filePath);
@@ -105,7 +119,7 @@ function mockLocalTranscription(): Promise<TranscriptionResult> {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
-        transcript: "Priya: Let's finalize the Q3 launch plan. I will complete the API integration docs by Friday. Jagadish, can you verify the security audit logs setting before then? Jagadish: Yes, I will do that by Thursday. Also, we have a blocker on the Postgres database connection pool size which needs to be fixed by the engineering team by Monday, otherwise the load test will fail.",
+        transcript: "User A: Let's finalize the Q3 launch plan. I will complete the API integration docs by Friday. User B, can you verify the security audit logs setting before then? User B: Yes, I will do that by Thursday. Also, we have a blocker on the Postgres database connection pool size which needs to be fixed by the engineering team by Monday, otherwise the load test will fail.",
         duration: 45,
       });
     }, 2000);

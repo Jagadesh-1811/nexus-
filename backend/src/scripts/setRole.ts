@@ -1,4 +1,4 @@
-import { prisma } from '../services/prisma.js';
+import { prisma } from '../services/prisma';
 
 const args = process.argv.slice(2);
 const uid = args[0];

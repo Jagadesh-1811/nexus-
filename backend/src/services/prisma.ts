@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
-import { logger } from '../config/logger.js';
-import { env } from '../config/env.js';
-export type AuditAction = string;
+import { logger } from '../config/logger';
+import { env } from '../config/env';
+import type { AuditAction } from '@prisma/client';
 
 // ============================================================
 // Prisma Singleton

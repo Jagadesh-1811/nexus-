@@ -12,28 +12,28 @@ import cors from 'cors';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import { env } from './config/env.js';
-import { logger } from './config/logger.js';
-import { helmetConfig } from './security/helmetConfig.js';
-import { globalRateLimit, authRateLimit } from './security/rateLimiter.js';
+import { env } from './config/env';
+import { logger } from './config/logger';
+import { helmetConfig } from './security/helmetConfig';
+import { globalRateLimit, authRateLimit } from './security/rateLimiter';
 import {
   requestIdMiddleware,
   securityHeaders,
   sanitizeBody,
   globalErrorHandler,
   notFoundHandler,
-} from './middleware/security.js';
-import { initializeWebSocket } from './services/websocket.js';
-import { initializeQdrantCollection } from './services/qdrant.js';
-import { prisma, disconnectPrisma } from './services/prisma.js';
-import { disconnectRedis } from './services/redis.js';
+} from './middleware/security';
+import { initializeWebSocket } from './services/websocket';
+import { initializeQdrantCollection } from './services/qdrant';
+import { prisma, disconnectPrisma } from './services/prisma';
+import { disconnectRedis } from './services/redis';
 
 // Routes
-import { ingestRouter } from './api/ingest.js';
-import { meetingsRouter } from './api/meetings.js';
-import { executionPlanRouter } from './api/executionPlan.js';
-import { memoryRouter } from './api/memory.js';
-import { settingsRouter } from './api/settings.js';
+import { ingestRouter } from './api/ingest';
+import { meetingsRouter } from './api/meetings';
+import { executionPlanRouter } from './api/executionPlan';
+import { memoryRouter } from './api/memory';
+import { settingsRouter } from './api/settings';
 
 const app = express();
 const httpServer = createServer(app);

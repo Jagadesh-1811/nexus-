@@ -1,13 +1,6 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import path from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Prioritize root .env file, fallback to local
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config();
 
 const envSchema = z.object({
@@ -57,10 +50,7 @@ const envSchema = z.object({
   ENKRYPT_AI_MODEL: z.string().optional(),
   USE_CLOUD_ENKRYPT: z.string().transform(v => v === 'true').default('false'),
 
-  // Slack
-  SLACK_BOT_TOKEN: z.string().startsWith('xoxb-').optional(),
-  SLACK_SIGNING_SECRET: z.string().optional(),
-  SLACK_DEFAULT_CHANNEL: z.string().default('#synapse-alerts'),
+
 
   // Jira
   JIRA_BASE_URL: z.string().url().optional(),

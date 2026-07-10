@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import axios from 'axios';
-import { env } from '../../config/env.js';
-import { logger } from '../../config/logger.js';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
 
 const jiraAuth = Buffer.from(`${env.JIRA_EMAIL}:${env.JIRA_API_TOKEN}`).toString('base64');
 

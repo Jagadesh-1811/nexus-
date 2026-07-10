@@ -15,25 +15,24 @@
 
 import { LegacyWorkflow as Workflow, LegacyStep as Step } from '@mastra/core/workflows/legacy';
 import { z } from 'zod';
-import { prisma, writeAuditLog } from '../../services/prisma.js';
-import { encrypt } from '../../security/crypto.js';
-import { env } from '../../config/env.js';
-import { logger } from '../../config/logger.js';
-import { emitPipelineEvent } from '../../services/websocket.js';
-import { createJiraTicketTool } from '../tools/jiraIntegration.js';
-import { sendSlackMessageTool } from '../tools/slackIntegration.js';
-import { searchSimilar, upsertVectors } from '../../services/qdrant.js';
+import { prisma, writeAuditLog } from '../../services/prisma';
+import { encrypt } from '../../security/crypto';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
+import { emitPipelineEvent } from '../../services/websocket';
+import { createJiraTicketTool } from '../tools/jiraIntegration';
+import { searchSimilar, upsertVectors } from '../../services/qdrant';
 import { embed, embedMany, generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 
 // Synapse Local AI Services
-import { transcribeAudio } from '../../services/transcription.js';
-import { getLLMModel } from '../../services/llmProvider.js';
-import { validateActionItem } from '../../services/validationGate.js';
-import { checkOnlineStatus } from '../../services/syncService.js';
-import { queueOfflineMeeting } from '../../services/localQueue.js';
+import { transcribeAudio } from '../../services/transcription';
+import { getLLMModel } from '../../services/llmProvider';
+import { validateActionItem } from '../../services/validationGate';
+import { checkOnlineStatus } from '../../services/syncService';
+import { queueOfflineMeeting } from '../../services/localQueue';
 
 // ============================================================
 // Input / Output Schemas
@@ -293,7 +292,7 @@ const persistStep = new Step({
     // Encrypt transcript before storing
     const encryptedTranscript = encrypt(transcript);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Update meeting record
       await tx.meeting.update({
         where: { id: meetingId },
@@ -498,25 +497,6 @@ const followUpStep = new Step({
           where: { meetingId, description: actionItem.description },
           data: { jiraTicketId: jiraResult.ticketId, jiraTicketUrl: jiraResult.ticketUrl, status: 'JIRA_CREATED' },
         });
-      }
-
-      // Slack (MEDIUM+ priority)
-      if (['HIGH', 'CRITICAL', 'MEDIUM'].includes(actionItem.priority)) {
-        await sendSlackMessageTool.execute!({
-          context: {
-            meetingTitle: title,
-            actionItemDescription: actionItem.description,
-            assignee: actionItem.assignee,
-            deadline: actionItem.deadline,
-            priority: actionItem.priority,
-            jiraUrl: jiraResult.ticketUrl || undefined,
-            meetingId,
-          },
-          runId: '',
-          mastra: undefined as any,
-          agents: {},
-          workflows: {},
-        } as any);
       }
 
       results.push({ actionItemId: actionItem.id, jira: jiraResult });

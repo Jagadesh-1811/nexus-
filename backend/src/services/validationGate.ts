@@ -1,7 +1,7 @@
 import { generateText, generateObject } from 'ai';
-import { getLLMModel } from './llmProvider.js';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { getLLMModel } from './llmProvider';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 import { z } from 'zod';
 import OpenAI from 'openai';
 

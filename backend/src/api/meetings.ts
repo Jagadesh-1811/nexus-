@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '../services/prisma.js';
-import { requireAuth, requireRole } from '../middleware/security.js';
-import { logger } from '../config/logger.js';
+import { prisma } from '../services/prisma';
+import { requireAuth, requireRole } from '../middleware/security';
+import { logger } from '../config/logger';
+import { env } from '../config/env';
 
 const router = Router();
 
@@ -9,7 +10,7 @@ const router = Router();
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   const { status, limit = '20', offset = '0', search } = req.query;
 
-  const meetings = await prisma.meeting.findMany({
+  let meetings = await prisma.meeting.findMany({
     where: {
       createdById: req.auth!.userId,
       ...(status ? { status: status as any } : {}),
@@ -31,9 +32,11 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     skip: Number(offset),
   });
 
-  const total = await prisma.meeting.count({
+  let total = await prisma.meeting.count({
     where: { createdById: req.auth!.userId },
   });
+
+
 
   res.json({ meetings, total, limit: Number(limit), offset: Number(offset) });
 });

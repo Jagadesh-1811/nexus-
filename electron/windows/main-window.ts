@@ -8,7 +8,8 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 1024,
     minHeight: 768,
     frame: false, // frameless window
-    backgroundColor: '#0B0F14',
+    backgroundColor: '#faf9f5', // match Claude cream theme
+    icon: path.join(__dirname, '../../assets/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
@@ -17,9 +18,10 @@ export function createMainWindow(): BrowserWindow {
   });
 
   // Load from packaged dist or local build
-  const indexPath = path.join(__dirname, '../../dist/index.html');
+  // __dirname = dist-electron/electron/windows/ → go up 3 levels to project root → dist/index.html
+  const indexPath = path.join(__dirname, '../../../dist/index.html');
   win.loadFile(indexPath).catch(() => {
-    // If not built yet, load from src for development
+    // Fallback for alternative build layouts
     win.loadFile(path.join(__dirname, '../../src/index.html'));
   });
 

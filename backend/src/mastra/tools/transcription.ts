@@ -9,8 +9,8 @@ import { createTool } from '@mastra/core/tools';
 import { createClient } from '@deepgram/sdk';
 import { z } from 'zod';
 import fs from 'fs';
-import { env } from '../../config/env.js';
-import { logger } from '../../config/logger.js';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
 
 const deepgram = createClient(env.DEEPGRAM_API_KEY);
 

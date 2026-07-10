@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 const QUEUE_DIR = path.resolve(env.UPLOAD_DIR || './uploads', 'sync_queue');
 

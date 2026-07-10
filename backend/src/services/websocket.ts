@@ -1,7 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 let io: SocketIOServer | null = null;
 
@@ -40,6 +40,15 @@ export function emitPipelineEvent(
   meetingId: string,
   data: { step: string; status: string; data?: Record<string, unknown> }
 ): void {
+  // If running inside Electron, forward the event to the global listener
+  if ((global as any).onPipelineEvent) {
+    try {
+      (global as any).onPipelineEvent(meetingId, data);
+    } catch (e) {
+      logger.error('Error forwarding pipeline event to Electron', { error: e });
+    }
+  }
+
   if (!io) return;
   io.to(`meeting:${meetingId}`).emit('pipeline:update', {
     meetingId,
@@ -47,6 +56,7 @@ export function emitPipelineEvent(
     timestamp: new Date().toISOString(),
   });
 }
+
 
 export function getIO(): SocketIOServer {
   if (!io) throw new Error('WebSocket server not initialized');

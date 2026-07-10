@@ -9,25 +9,23 @@
 
 import { Agent } from '@mastra/core/agent';
 import { openai } from '@ai-sdk/openai';
-import { createJiraTicketTool } from '../tools/jiraIntegration.js';
-import { sendSlackMessageTool } from '../tools/slackIntegration.js';
-import { env } from '../../config/env.js';
+import { createJiraTicketTool } from '../tools/jiraIntegration';
+import { env } from '../../config/env';
 
 const FOLLOW_UP_SYSTEM_PROMPT = `You are Synapse Follow-Up, an autonomous execution agent. Your job is to drive project execution by triggering the right external systems with validated action items.
 
 ## Rules:
 1. ONLY process action items that have isValidated=true and enkryptValidationScore >= 0.85.
-2. For EACH action item: create a Jira ticket and send a Slack notification.
+2. For EACH action item: create a Jira ticket.
 3. NEVER create duplicate tickets — check jiraTicketId before creating.
 4. Format Jira tickets professionally: clear title, description with context, acceptance criteria.
-5. Slack messages should be concise and include: meeting title, assignee, deadline, Jira link.
-6. Log every action you take.
+5. Log every action you take.
 
 ## Priority Mapping:
-- CRITICAL → Jira P0, immediate Slack alert
-- HIGH → Jira P1, Slack alert
-- MEDIUM → Jira P2, Slack only
-- LOW → Jira P3, no notification`;
+- CRITICAL → Jira P0
+- HIGH → Jira P1
+- MEDIUM → Jira P2
+- LOW → Jira P3`;
 
 export const followUpAgent = new Agent({
   name: 'Follow-Up Agent',
@@ -35,6 +33,5 @@ export const followUpAgent = new Agent({
   model: openai(env.OPENAI_MODEL),
   tools: {
     createJiraTicket: createJiraTicketTool,
-    sendSlackMessage: sendSlackMessageTool,
   },
 });

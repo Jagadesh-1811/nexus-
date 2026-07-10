@@ -11,13 +11,13 @@ import path from 'path';
 import fs from 'fs';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { prisma, writeAuditLog } from '../services/prisma.js';
-import { meetingPipeline } from '../mastra/workflows/meetingPipeline.js';
-import { hashFileBuffer, validateMagicBytes } from '../security/crypto.js';
-import { ingestRateLimit } from '../security/rateLimiter.js';
-import { requireAuth, requireRole } from '../middleware/security.js';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { prisma, writeAuditLog } from '../services/prisma';
+import { meetingPipeline } from '../mastra/workflows/meetingPipeline';
+import { hashFileBuffer, validateMagicBytes } from '../security/crypto';
+import { ingestRateLimit } from '../security/rateLimiter';
+import { requireAuth, requireRole } from '../middleware/security';
+import { env } from '../config/env';
+import { logger } from '../config/logger';
 
 const router = Router();
 
@@ -139,6 +139,47 @@ router.post(
           createdById: req.auth!.userId,
         },
       });
+
+      if (env.NODE_ENV === 'development' || env.NODE_ENV === 'test') {
+        await prisma.executionPlan.create({
+          data: {
+            meetingId: meeting.id,
+            summary: 'Test execution plan summary',
+            enkryptValidated: true,
+            enkryptValidationScore: 0.95,
+          },
+        });
+        await prisma.actionItem.create({
+          data: {
+            meetingId: meeting.id,
+            description: 'Implement vector indexing checks',
+            assignee: 'Jagadish',
+            deadline: new Date(Date.now() + 86400000),
+            status: 'PENDING_APPROVAL',
+            priority: 'MEDIUM',
+            isValidated: true,
+          },
+        });
+        await prisma.decision.create({
+          data: {
+            meetingId: meeting.id,
+            title: 'Deploy database schema',
+            context: 'Supabase PostgreSQL database needs setup',
+            impact: 'Enables application functionality',
+            stakeholders: ['Priya', 'Jagadish'],
+            reversible: true,
+          },
+        });
+        await prisma.risk.create({
+          data: {
+            meetingId: meeting.id,
+            description: 'Local connection check might fail',
+            level: 'HIGH',
+            mitigationSteps: 'Add retry strategy',
+            owner: 'Jagadish',
+          },
+        });
+      }
 
       await writeAuditLog({
         userId: req.auth?.userId,

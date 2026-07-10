@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('synapse', {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (settings: any) => ipcRenderer.invoke('settings:update', settings),
     ollamaStatus: () => ipcRenderer.invoke('settings:ollama-status'),
-    ollamaPull: (model: string) => ipcRenderer.invoke('settings:ollama-pull', model)
+    ollamaPull: (model: string) => ipcRenderer.invoke('settings:ollama-pull', model),
+    getAutocapture: () => ipcRenderer.invoke('settings:get-autocapture'),
+    updateAutocapture: (settings: any) => ipcRenderer.invoke('settings:update-autocapture', settings)
   },
   auth: {
     getSession: () => ipcRenderer.invoke('auth:get-session'),

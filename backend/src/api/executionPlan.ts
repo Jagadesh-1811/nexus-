@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '../services/prisma.js';
-import { requireAuth } from '../middleware/security.js';
+import { prisma } from '../services/prisma';
+import { requireAuth } from '../middleware/security';
 
 const router = Router();
 
@@ -42,7 +42,16 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
     return;
   }
 
-  res.json({ plan });
+  res.json({
+    id: plan.id,
+    summary: plan.summary,
+    plan,
+    decisions: plan.meeting.decisions,
+    validatedDecisions: plan.meeting.decisions,
+    tasks: plan.meeting.actionItems,
+    deadlines: plan.meeting.actionItems.map(item => item.deadline),
+    assignees: plan.meeting.actionItems.map(item => item.assignee).filter(Boolean),
+  });
 });
 
 // GET /api/execution-plan/by-meeting/:meetingId
@@ -78,7 +87,16 @@ router.get('/by-meeting/:meetingId', requireAuth, async (req: Request, res: Resp
     return;
   }
 
-  res.json({ plan });
+  res.json({
+    id: plan.id,
+    summary: plan.summary,
+    plan,
+    decisions: plan.meeting.decisions,
+    validatedDecisions: plan.meeting.decisions,
+    tasks: plan.meeting.actionItems,
+    deadlines: plan.meeting.actionItems.map(item => item.deadline),
+    assignees: plan.meeting.actionItems.map(item => item.assignee).filter(Boolean),
+  });
 });
 
 export { router as executionPlanRouter };

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "prisma:generate": "prisma generate",
+    "prisma:generate": "prisma generate && prisma generate --schema=backend/prisma/schema.prisma",
     "kill-electron": "powershell -Command \"Get-Process -Name electron -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500\"",
     "electron:dev": "npm run build && npm run kill-electron && npm run prisma:generate && tsc -p tsconfig.electron.json && electron .",
     "electron:build": "npm run prisma:generate && npm run build && electron-builder"
@@ -52,14 +52,18 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.5",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.5.2",
     "electron": "^28.1.0",
     "electron-builder": "^24.9.1",
+    "postcss": "^8.5.16",
     "prisma": "^5.22.0",
+    "tailwindcss": "^4.3.2",
     "typescript": "^5.3.3",
     "vite": "^5.0.10"
   },

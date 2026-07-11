@@ -2,7 +2,8 @@ export const IPC_CHANNELS = {
   MEETINGS: {
     LIST: 'meetings:list',
     GET: 'meetings:get',
-    APPROVE: 'meetings:approve'
+    APPROVE: 'meetings:approve',
+    DELETE: 'meetings:delete'
   },
   INGEST: {
     UPLOAD: 'ingest:upload',

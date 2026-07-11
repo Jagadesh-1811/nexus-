@@ -11,7 +11,7 @@ export const MODELS = {
 
 // Create local Ollama instance (using its OpenAI-compatible endpoint)
 const ollama = createOpenAI({
-  baseURL: env.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
+  baseURL: env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
   apiKey: 'ollama', // Dummy key
 });
 
@@ -54,7 +54,7 @@ export function getEmbeddingModel() {
  * Perform a simple check if Ollama is running
  */
 export async function checkOllamaStatus(): Promise<boolean> {
-  const baseURL = env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
+  const baseURL = env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1';
   const url = baseURL.endsWith('/v1')
     ? baseURL.substring(0, baseURL.length - 3) + '/api/tags'
     : baseURL.replace(/\/+$/, '') + '/api/tags';

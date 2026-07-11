@@ -1,11 +1,17 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@source "./main.ts";
+@source "./index.html";
+
 /* Nexus · Claude / Anthropic Design System
    Canvas: warm cream #faf9f5 · Primary: coral #cc785c · Ink: #141413
    Display: Cormorant Garamond (serif) · Body: Inter (humanist sans)
    ------------------------------------------------------------------ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
 :root {
+  --font-heading: 'HelveticaNowDisplay-Medium', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'HelveticaNowDisplayW01-Rg', 'Helvetica Neue', Arial, sans-serif;
+
   /* === Brand & Accent === */
   --primary:              #cc785c;
   --primary-active:       #a9583e;
@@ -62,13 +68,22 @@
 body {
   background-color: var(--canvas);
   color: var(--body);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.55;
   height: 100vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
 }
 
 h1, h2, h3, h4 {
@@ -665,3 +680,96 @@ body.dark .switch input:checked + .slider-cache:before {
   background-color: var(--on-primary) !important;
 }
 
+/* ─── Landing Page Polishes (Fail-safes for Electron) ─── */
+.landing-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: #ffffff !important;
+  color: #141413 !important;
+  border: 1px solid rgba(20, 20, 19, 0.1) !important;
+  border-radius: 9999px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  padding: 10px 22px !important;
+  margin: 6px !important;
+  white-space: nowrap !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+.landing-pill:hover {
+  background-color: #141413 !important;
+  color: #ffffff !important;
+  border-color: #141413 !important;
+}
+
+.landing-auth-btn-primary {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: var(--primary) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(204, 120, 92, 0.2) !important;
+  border-radius: 9999px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  padding: 12px 28px !important;
+  margin: 6px !important;
+  white-space: nowrap !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04) !important;
+}
+.landing-auth-btn-primary:hover {
+  background-color: var(--primary-active) !important;
+  color: #ffffff !important;
+}
+
+.landing-auth-btn-secondary {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: var(--ink) !important;
+  border: 1px solid rgba(20, 20, 19, 0.1) !important;
+  border-radius: 9999px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  padding: 12px 28px !important;
+  margin: 6px !important;
+  white-space: nowrap !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+}
+.landing-auth-btn-secondary:hover {
+  background-color: #ffffff !important;
+  border-color: #141413 !important;
+  color: var(--ink) !important;
+}
+
+.landing-container-padding {
+  padding-left: 3rem !important;
+  padding-right: 3rem !important;
+}
+@media (min-width: 640px) {
+  .landing-container-padding {
+    padding-left: 5rem !important;
+    padding-right: 5rem !important;
+  }
+}
+@media (min-width: 1024px) {
+  .landing-container-padding {
+    padding-left: 6rem !important;
+    padding-right: 6rem !important;
+  }
+}
+
+.subsystems-title-gap {
+  margin-bottom: 28px !important;
+}
+.subsystems-grid-gap {
+  gap: 32px !important;
+}

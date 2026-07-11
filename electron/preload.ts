@@ -4,7 +4,8 @@ contextBridge.exposeInMainWorld('synapse', {
   meetings: {
     list: () => ipcRenderer.invoke('meetings:list'),
     get: (id: string) => ipcRenderer.invoke('meetings:get', id),
-    approve: (id: string, updates: any) => ipcRenderer.invoke('meetings:approve', id, updates)
+    approve: (id: string, updates: any) => ipcRenderer.invoke('meetings:approve', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('meetings:delete', id)
   },
   ingest: {
     upload: (filePath: string) => ipcRenderer.invoke('ingest:upload', filePath),

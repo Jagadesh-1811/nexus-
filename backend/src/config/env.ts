@@ -37,7 +37,7 @@ const envSchema = z.object({
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-large'),
 
   // Ollama (Primary local AI processor)
-  OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
+  OLLAMA_BASE_URL: z.string().url().default('http://127.0.0.1:11434/v1'),
   OLLAMA_MODEL: z.string().default('qwen2.5:14b'),
   OLLAMA_AUDITOR_MODEL: z.string().default('qwen2.5:14b'),
 
@@ -54,8 +54,8 @@ const envSchema = z.object({
 
 
   // Jira
-  JIRA_BASE_URL: z.string().url().optional(),
-  JIRA_EMAIL: z.string().email().optional(),
+  JIRA_BASE_URL: z.preprocess((val) => (val === '' ? undefined : val), z.string().url().optional()),
+  JIRA_EMAIL: z.preprocess((val) => (val === '' ? undefined : val), z.string().email().optional()),
   JIRA_API_TOKEN: z.string().optional(),
   JIRA_DEFAULT_PROJECT: z.string().default('PROJ'),
 

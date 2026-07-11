@@ -89,7 +89,7 @@ model WorkspaceMember {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, userId])
+  @@unique([workspaceId, userId], name: "workspace_members_uniq")
   @@map("workspace_members")
 }
 

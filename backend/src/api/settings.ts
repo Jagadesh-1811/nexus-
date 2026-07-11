@@ -137,7 +137,7 @@ router.get('/ollama-status', requireAuth, async (req: Request, res: Response) =>
   let pulledModels: string[] = [];
   if (isRunning) {
     try {
-      const tagsResponse = await fetch('http://localhost:11434/api/tags');
+      const tagsResponse = await fetch('http://127.0.0.1:11434/api/tags');
       if (tagsResponse.ok) {
         const data = await tagsResponse.json() as any;
         pulledModels = data.models?.map((m: any) => m.name) || [];
@@ -166,7 +166,7 @@ router.post('/ollama-pull', requireAuth, async (req: Request, res: Response) => 
   
   try {
     // Initiate non-blocking model pull request to local Ollama daemon
-    fetch('http://localhost:11434/api/pull', {
+    fetch('http://127.0.0.1:11434/api/pull', {
       method: 'POST',
       body: JSON.stringify({ name: model, stream: false }),
     }).catch(e => logger.error('Async model pull failed', { error: e }));

@@ -3,8 +3,154 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws://localhost:3001 http://localhost:3001 http://localhost:11434 https://wmmyiyjxunxzijgqzksk.supabase.co https://api.enkryptai.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://db.onlinewebfonts.com; font-src 'self' https://fonts.gstatic.com https://db.onlinewebfonts.com; img-src 'self' data:; connect-src 'self' ws://localhost:3001 http://localhost:3001 http://localhost:11434 https://wmmyiyjxunxzijgqzksk.supabase.co https://api.enkryptai.com; media-src 'self' https://d8j0ntlcm91z4.cloudfront.net;">
   <title>Nexus Meeting Intelligence</title>
+  <script>
+    if (!window.synapse) {
+      console.log('Injecting mock window.synapse for standard browser context');
+      window.synapse = {
+        meetings: {
+          list: async () => {
+            const list = localStorage.getItem('mock_meetings') || '[]';
+            return JSON.parse(list);
+          },
+          get: async (id) => {
+            const list = JSON.parse(localStorage.getItem('mock_meetings') || '[]');
+            const meeting = list.find(m => m.id === id);
+            if (!meeting) throw new Error('Meeting not found');
+            const actionItems = JSON.parse(localStorage.getItem('mock_action_items') || '[]').filter(item => item.meetingId === id);
+            return { meeting, actionItems, executionPlan: { enkryptValidationScore: 0.95 } };
+          },
+          approve: async (id, updates) => {
+            const actionItems = JSON.parse(localStorage.getItem('mock_action_items') || '[]');
+            const idx = actionItems.findIndex(item => item.id === id);
+            if (idx !== -1) {
+              actionItems[idx] = { ...actionItems[idx], ...updates };
+              if (updates.status) {
+                actionItems[idx].status = updates.status === 'validated' ? 'APPROVED' : updates.status.toUpperCase();
+              }
+              localStorage.setItem('mock_action_items', JSON.stringify(actionItems));
+            }
+            return { success: true };
+          },
+          delete: async (id) => {
+            let list = JSON.parse(localStorage.getItem('mock_meetings') || '[]');
+            list = list.filter(m => m.id !== id);
+            localStorage.setItem('mock_meetings', JSON.stringify(list));
+            return { success: true };
+          }
+        },
+        ingest: {
+          upload: async (filePath) => {
+            console.log('Mock uploading file:', filePath);
+            return { success: true };
+          },
+          uploadBuffer: async (buffer) => {
+            console.log('Mock uploading buffer');
+            return { success: true, transcript: 'Mock transcript from buffer' };
+          },
+          onProgress: (callback) => {
+            setTimeout(() => callback(null, { progress: 20, stage: 'transcribe', message: 'Deepgram transcription in progress...' }), 100);
+            setTimeout(() => callback(null, { progress: 50, stage: 'extract', message: 'Extracting decisions and action items...' }), 300);
+            setTimeout(() => callback(null, { progress: 80, stage: 'validate', message: 'Validating commitments...' }), 500);
+            setTimeout(() => callback(null, { progress: 100, stage: 'Complete', message: 'Pipeline complete!' }), 700);
+            return () => {};
+          },
+          onAutocapStart: (callback) => () => {},
+          onAutocapStop: (callback) => () => {}
+        },
+        memory: {
+          search: async (query) => [],
+          ask: async (question) => ({ answer: 'This is a mock response to: ' + question })
+        },
+        settings: {
+          get: async () => ({ enableLocalCache: true }),
+          update: async (settings) => settings,
+          ollamaStatus: async () => ({ active: true }),
+          ollamaPull: async (model) => ({ success: true }),
+          getAutocapture: async () => ({ enabled: false }),
+          updateAutocapture: async (settings) => settings
+        },
+        auth: {
+          getSession: async () => {
+            const user = localStorage.getItem('mock_user');
+            if (!user) return null;
+            return { data: { session: { user: JSON.parse(user) } } };
+          },
+          signIn: async (creds) => {
+            console.log('Mock signing in user:', creds.email);
+            const user = { id: 'mock-user-123', email: creds.email, user_metadata: { full_name: creds.email.split('@')[0] } };
+            localStorage.setItem('mock_user', JSON.stringify(user));
+            return { user, session: { access_token: 'mock-jwt-token' } };
+          },
+          signUp: async (creds) => {
+            const user = { id: 'mock-user-123', email: creds.email, user_metadata: { full_name: creds.email.split('@')[0] } };
+            localStorage.setItem('mock_user', JSON.stringify(user));
+            return { user, session: { access_token: 'mock-jwt-token' } };
+          },
+          signOut: async () => {
+            localStorage.removeItem('mock_user');
+            return { success: true };
+          }
+        },
+        system: {
+          health: async () => ({ healthy: true }),
+          dockerStatus: async () => ({ active: true }),
+          dockerStart: async () => ({ success: true }),
+          dockerStop: async () => ({ success: true }),
+          getResources: async () => ({ cpu: 12, ram: 45 })
+        },
+        native: {
+          openFileDialog: async () => 'mock_meeting_audio.mp3',
+          showNotification: async (title, body) => console.log('Notification:', title, body),
+          revealExplorer: async (path) => console.log('Reveal:', path),
+          minimize: async () => {},
+          maximize: async () => {}
+        },
+        workspace: {
+          get: async () => ({ id: 'default_workspace', name: 'Default Workspace' }),
+          invite: async (data) => ({ success: true })
+        }
+      };
+
+      // Seed mock meetings if empty, to allow list & detail views to work
+      const existingMeetings = localStorage.getItem('mock_meetings');
+      if (!existingMeetings) {
+        const mockMeetings = [
+          {
+            id: 'mock-meeting-id-1',
+            title: 'Q3 Product Strategy Sync',
+            status: 'COMPLETED',
+            createdAt: new Date().toISOString(),
+            participantNames: ['Alice Smith', 'Bob Jones'],
+            transcriptRaw: "Let's align on Q3 launch date. Alice will publish the documentation by Wednesday. Bob will run the security scanning tool before Friday."
+          }
+        ];
+        const mockActionItems = [
+          {
+            id: 'mock-action-item-id-1',
+            meetingId: 'mock-meeting-id-1',
+            description: 'Publish documentation by Wednesday',
+            assignee: 'Alice Smith',
+            status: 'PENDING_APPROVAL',
+            dueDate: new Date(Date.now() + 86400000 * 3).toISOString()
+          },
+          {
+            id: 'mock-action-item-id-2',
+            meetingId: 'mock-meeting-id-1',
+            description: 'Run security scanning tool before Friday',
+            assignee: 'Bob Jones',
+            status: 'APPROVED',
+            dueDate: new Date(Date.now() + 86400000 * 5).toISOString()
+          }
+        ];
+        localStorage.setItem('mock_meetings', JSON.stringify(mockMeetings));
+        localStorage.setItem('mock_action_items', JSON.stringify(mockActionItems));
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://db.onlinewebfonts.com/c/5ac3fe7c6abd2f62067f266d89671492?family=HelveticaNowDisplay-Medium">
+  <link rel="stylesheet" href="https://db.onlinewebfonts.com/c/1aa3377e489837a26d019bba501e779d?family=HelveticaNowDisplayW01-Rg">
   <link rel="stylesheet" href="./index.css">
 </head>
 <body>

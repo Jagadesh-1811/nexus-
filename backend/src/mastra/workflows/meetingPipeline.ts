@@ -406,7 +406,11 @@ const persistStep = new Step({
             meetingId,
             description: result.item.description,
             assignee: result.item.assignee,
-            deadline: result.item.deadline ? new Date(result.item.deadline) : null,
+            deadline: (() => {
+              if (!result.item.deadline) return null;
+              const date = new Date(result.item.deadline);
+              return isNaN(date.getTime()) ? null : date;
+            })(),
             priority: result.item.priority,
             isValidated: result.isValid,
             validationScore: result.confidenceScore,

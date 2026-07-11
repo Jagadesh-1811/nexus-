@@ -391,9 +391,11 @@ async function renderDashboard() {
     let totalValidationScore = 0;
     let meetingWithScoreCount = 0;
 
+    const meetingDetailsMap = new Map<string, any>();
     for (const m of meetings) {
       try {
         const res = await window.synapse.meetings.get(m.id);
+        meetingDetailsMap.set(m.id, res);
         const items: any[] = res.actionItems || [];
         totalItems += items.length;
         approvedItems += items.filter((i: any) => ['APPROVED', 'VALIDATED', 'DISPATCHED'].includes((i.status || '').toUpperCase())).length;
@@ -429,9 +431,15 @@ async function renderDashboard() {
     const trustDescEl = document.getElementById('trust-meter-desc');
     if (trustMeterEl) trustMeterEl.innerText = `${trustPct}%`;
     if (trustDescEl) {
-      trustDescEl.innerText = totalItems > 0
-        ? `${approvedItems} of ${totalItems} commitments approved. ${trustPct >= 80 ? 'Autonomy enabled for low-risk actions.' : 'Manual review recommended.'}`
-        : 'No action items yet. Ingest a meeting to begin.';
+      if (totalItems > 0) {
+        trustDescEl.innerHTML = `${approvedItems} of ${totalItems} commitments approved. ` +
+          (trustPct >= 80 
+            ? `<span style="color: var(--validated-green); font-weight: 500;">Autonomy enabled.</span>` 
+            : `<span style="color: var(--risk-red); font-weight: 600;">Manual review recommended.</span> <a href="#" onclick="checkAuthAndNavigate('court'); return false;" style="color: var(--primary); text-decoration: underline; font-weight: 600; margin-left: 4px;">Go to Commitment Court</a>`
+          );
+      } else {
+        trustDescEl.innerText = 'No action items yet. Ingest a meeting to begin.';
+      }
     }
     if (meetingsPendingEl) {
       meetingsPendingEl.innerText = pendingItems > 0
@@ -447,7 +455,7 @@ async function renderDashboard() {
         container.innerHTML = meetings.map((m: any, index: number) => `
           <div class="action-item-card validated" style="position: relative;">
             <div style="display: flex; justify-content: space-between;">
-              <strong>${m.title || 'Untitled Meeting'}</strong>
+              <strong>${m.title || 'Untitled Meeting'} <span style="font-size: 11.5px; font-weight: normal; color: var(--muted);">(${m.id})</span></strong>
               <span class="mono" style="font-size: 11px; color: var(--muted);">${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : ''}</span>
             </div>
             <p style="margin: 6px 0; font-size: 13.5px; color: var(--muted);">
@@ -459,7 +467,39 @@ async function renderDashboard() {
               <span class="rail-node ${['COMPLETED', 'VALIDATING'].includes(m.status) ? 'active-green' : ''}">Validated</span>
               <span class="rail-node ${m.status === 'COMPLETED' ? 'active-green' : ''}">Dispatched</span>
             </div>
-                       <div style="margin-top: 12px; border-top: 1px dashed var(--hairline); padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+
+            ${(() => {
+              const details = meetingDetailsMap.get(m.id);
+              const items = details?.actionItems || [];
+              if (items.length === 0) return '';
+              return `
+                <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--hairline);">
+                  <strong style="font-size: 11px; text-transform: uppercase; color: var(--primary); letter-spacing: 0.5px; display: block; margin-bottom: 8px;">Extracted Commitments:</strong>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${items.map((item: any) => {
+                      const isPending = ['PENDING', 'FLAGGED', 'EXTRACTED', 'PENDING_APPROVAL'].includes((item.status || '').toUpperCase());
+                      return `
+                        <div style="background: var(--surface-soft); border: 1px solid var(--hairline); padding: 8px 12px; border-radius: var(--r-sm); display: flex; justify-content: space-between; align-items: center;">
+                          <div style="flex: 1; padding-right: 12px;">
+                            <span style="font-weight: 600; font-size: 13.5px; color: var(--body-strong);">&ldquo;${item.description}&rdquo;</span>
+                            <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+                              Assignee: ${item.assignee || 'Unassigned'} · Status: <span style="font-weight: bold; color: ${isPending ? 'var(--flagged-amber)' : 'var(--validated-green)'}">${item.status}</span>
+                            </div>
+                          </div>
+                          ${isPending ? `
+                            <button class="btn primary" style="padding: 4px 8px; font-size: 11px; white-space: nowrap;" onclick="approveCommitmentDirectly('${item.id}')">Approve</button>
+                          ` : `
+                            <span style="color: var(--validated-green); font-size: 16px; font-weight: bold; padding-right: 6px;">✓</span>
+                          `}
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            })()}
+
+            <div style="margin-top: 12px; border-top: 1px dashed var(--hairline); padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
               <div>
                 ${m.transcriptRaw || m.status === 'PENDING' ? `
                   <button class="btn" style="padding: 4px 8px; font-size: 11px;" onclick="toggleScript(${index})">Toggle Transcribed Script</button>
@@ -481,6 +521,16 @@ async function renderDashboard() {
           const el = document.getElementById('script-block-' + idx);
           if (el) {
             el.style.display = el.style.display === 'none' ? 'block' : 'none';
+          }
+        };
+
+        (window as any).approveCommitmentDirectly = async (itemId: string) => {
+          try {
+            await window.synapse.meetings.approve(itemId, { status: 'validated' });
+            await renderDashboard();
+          } catch (err) {
+            alert('Failed to approve commitment');
+            console.error(err);
           }
         };
 
@@ -520,7 +570,7 @@ function renderUpload() {
         <div style="flex: 1; border: 2px solid var(--hairline); padding: 40px; text-align: center; border-radius: var(--r-lg); background: var(--canvas);">
           <h3>Live Listener</h3>
           <div style="margin-top: 12px; display: flex; gap: 10px; justify-content: center; align-items: center;">
-            <button id="btn-start-record" class="btn primary" style="background-color: var(--neon-accent); color: black;">Start</button>
+            <button id="btn-start-record" class="btn primary">Start</button>
             <button id="btn-stop-record" class="btn" style="background: var(--risk-red); color: white; border-color: var(--risk-red);" disabled>Stop</button>
           </div>
           <div id="recording-indicator" style="display: none; margin-top: 12px; color: var(--risk-red); font-weight: 600; animation: pulse 1.5s infinite;">
@@ -872,11 +922,22 @@ function renderAskSynapse() {
     const res = await window.synapse.memory.ask(val);
     if (answerText) answerText.innerText = res.answer;
     if (citationsList) {
-      citationsList.innerHTML = res.citations.map((c: any) => `
-        <div style="font-size: 12px; background: var(--surface-card); padding: 6px 10px; border-radius: var(--r-sm); margin-bottom: 6px; color: var(--muted); border: 1px solid var(--hairline);" class="mono">
-          <strong>Meeting ID ${c.meetingId} [Timestamp ${c.timestamp}]:</strong> "${c.text}"
-        </div>
-      `).join('');
+      let meetingMap = new Map<string, string>();
+      try {
+        const meetings = await window.synapse.meetings.list();
+        for (const m of meetings) {
+          meetingMap.set(m.id, m.title);
+        }
+      } catch (e) {}
+
+      citationsList.innerHTML = res.citations.map((c: any) => {
+        const title = meetingMap.get(c.meetingId) || 'Untitled Meeting';
+        return `
+          <div style="font-size: 12px; background: var(--surface-card); padding: 6px 10px; border-radius: var(--r-sm); margin-bottom: 6px; color: var(--muted); border: 1px solid var(--hairline);" class="mono">
+            <strong>${title} (${c.meetingId}) [Timestamp ${c.timestamp}]:</strong> "${c.text}"
+          </div>
+        `;
+      }).join('');
     }
   });
 }
@@ -903,8 +964,9 @@ function renderLogin(startAsSignUp: boolean = false) {
         <div id="auth-error-msg" style="color: var(--risk-red); font-size: 13px; display: none;"></div>
         <button id="btn-auth-submit" class="btn primary" style="width: 100%; padding: 12px; margin-top: 4px;">Sign In</button>
         
-        <div style="text-align: center; margin-top: 10px; font-size: 12px;">
+        <div style="text-align: center; margin-top: 10px; font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
           <a href="#" id="auth-toggle" style="color: var(--primary); text-decoration: none; font-size: 13px;">Don't have an account? Sign Up</a>
+          <a href="#" id="auth-back" style="color: var(--muted); text-decoration: none; font-size: 13px; margin-top: 4px;">&larr; Back to Landing Page</a>
         </div>
       </div>
     </div>
@@ -916,6 +978,13 @@ function renderLogin(startAsSignUp: boolean = false) {
   const errorEl = document.getElementById('auth-error-msg') as HTMLElement;
   const submitBtn = document.getElementById('btn-auth-submit') as HTMLButtonElement;
   const toggleLink = document.getElementById('auth-toggle') as HTMLElement;
+  const backLink = document.getElementById('auth-back') as HTMLElement;
+
+  backLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.hash = '';
+    renderLandingPage();
+  });
 
   let isSignUpMode = startAsSignUp;
 

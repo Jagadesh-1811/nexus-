@@ -20,12 +20,14 @@ export async function transcribeAudio(
   filePath: string,
   provider?: 'whisper' | 'deepgram'
 ): Promise<TranscriptionResult> {
-  if (filePath.includes('auto-rec-') || filePath.includes('nexus-recording-')) {
-    logger.info(`Auto-captured/Live recording mock file detected. Generating mock transcript.`);
+  const activeProvider = provider || (env.DEEPGRAM_API_KEY ? 'deepgram' : 'whisper');
+
+  // If no provider API key and no local whisper path, fall back to mock
+  if (!env.DEEPGRAM_API_KEY && !process.env.WHISPER_CPP_PATH) {
+    logger.warn(`No transcription provider configured (missing DEEPGRAM_API_KEY and WHISPER_CPP_PATH). Generating mock transcript.`);
     return mockLocalTranscription();
   }
 
-  const activeProvider = provider || (env.DEEPGRAM_API_KEY ? 'deepgram' : 'whisper');
   logger.info(`Starting transcription with provider: ${activeProvider} for file: ${filePath}`);
 
   if (activeProvider === 'deepgram') {

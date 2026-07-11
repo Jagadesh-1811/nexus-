@@ -55,7 +55,7 @@ export async function validateActionItem(
   // DEFAULT Mode: Local Dual-Model Cross-Check
   // We use our local Ollama model with an adversarial Auditor persona prompt.
   try {
-    const auditorModel = getLLMModel('ollama', env.OLLAMA_AUDITOR_MODEL || 'qwen2.5:14b');
+    const auditorModel = getLLMModel('ollama', process.env.OLLAMA_AUDITOR_MODEL || env.OLLAMA_MODEL || 'qwen2.5:14b');
     
     const prompt = `
     You are an ADVERSARIAL HALLUCINATION AUDITOR. Your sole job is to cross-examine a drafted Action Item against the literal meeting transcript and flag ANY discrepancies or unconfirmed assertions.

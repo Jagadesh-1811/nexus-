@@ -1045,10 +1045,6 @@ body.dark .switch input:checked + .slider-cache:before {
   transition: opacity 0.3s;
 }
 
-.glow-card:hover .glass-shine-shine {
-  opacity: 1;
-  animation: shine 1.6s infinite;
-}
 
 .dashboard-grid {
   display: grid !important;

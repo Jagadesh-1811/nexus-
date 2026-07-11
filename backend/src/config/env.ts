@@ -54,8 +54,8 @@ const envSchema = z.object({
 
 
   // Jira
-  JIRA_BASE_URL: z.string().url().optional(),
-  JIRA_EMAIL: z.string().email().optional(),
+  JIRA_BASE_URL: z.preprocess((val) => (val === '' ? undefined : val), z.string().url().optional()),
+  JIRA_EMAIL: z.preprocess((val) => (val === '' ? undefined : val), z.string().email().optional()),
   JIRA_API_TOKEN: z.string().optional(),
   JIRA_DEFAULT_PROJECT: z.string().default('PROJ'),
 

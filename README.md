@@ -123,5 +123,5 @@ This project is licensed under the MIT License.
 
 ## The Team
 
-*   **Jagadesh** — *Core Backend Architecture & AI Pipelines*
-*   **YS304** — *Electron Desktop Integration & Layout Design*
+*   **Jagadeeshwar C V** 
+*   **Shyam Yemuka** 

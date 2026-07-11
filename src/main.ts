@@ -101,6 +101,16 @@ function setContentAreaStyle(mode: 'app' | 'landing') {
     contentArea.style.background = '';
   }
 }
+function postRenderPolishes() {
+  const cards = document.querySelectorAll('.glow-card, .flat-panel');
+  cards.forEach(card => {
+    if (!card.querySelector('.glass-shine-shine')) {
+      const shine = document.createElement('div');
+      shine.className = 'glass-shine-shine';
+      card.insertBefore(shine, card.firstChild);
+    }
+  });
+}
 function navigateToPage(page: string) {
   setContentAreaStyle('app');
   navItems.forEach(item => {
@@ -235,9 +245,7 @@ window.addEventListener('hashchange', () => {
   checkAuthAndNavigate(hash);
 });
 
-// App Initialization
 document.addEventListener('DOMContentLoaded', () => {
-  // Title Bar buttons hooks
   document.getElementById('btn-minimize')?.addEventListener('click', () => {
     window.synapse.native.minimize();
   });
@@ -381,17 +389,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // Render Dashboard
 async function renderDashboard() {
   contentArea.innerHTML = `
-    <div class="flat-panel">
+    <div style="margin-bottom: 32px;">
       <h2>Project Command Center</h2>
       <p style="color: var(--muted); margin-bottom: 24px;">Real-time view of verified tasks, local intelligence node status, and team activity.</p>
       
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-        <div class="flat-panel" style="margin: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+      <div class="dashboard-grid">
+        <div class="glow-card">
           <h3>Trust Meter Level</h3>
           <div id="trust-meter-value" style="font-size: 36px; font-weight: bold; color: var(--validated-green); margin: 12px 0;">—</div>
           <p id="trust-meter-desc" style="font-size: 13px; color: var(--muted);">Calculating approval ratio from verified action items...</p>
         </div>
-        <div class="flat-panel" style="margin: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div class="glow-card">
           <h3>Meeting Transcripts</h3>
           <div id="meetings-count-dashboard" style="font-size: 36px; font-weight: bold; color: var(--primary); margin: 12px 0;">—</div>
           <p id="meetings-count-desc" style="font-size: 13px; color: var(--muted);">Total meetings ingested and indexed.</p>
@@ -399,13 +407,14 @@ async function renderDashboard() {
       </div>
     </div>
     
-    <div class="flat-panel">
+    <div class="glow-card">
       <h2>Recent Verified Commitments</h2>
       <div id="verified-items-container">Loading...</div>
     </div>
   `;
 
   try {
+    postRenderPolishes();
     checkConsentOnboarding();
     const meetings = await window.synapse.meetings.list();
     const meetingsCountEl = document.getElementById('meetings-count');
@@ -583,6 +592,7 @@ async function renderDashboard() {
         };
       }
     }
+    postRenderPolishes();
   } catch (err) {
     console.error(err);
     const container = document.getElementById('verified-items-container');
@@ -736,6 +746,7 @@ function renderUpload() {
         }, 2000);
       }
     });
+    postRenderPolishes();
   }
 }
 
@@ -808,6 +819,7 @@ async function renderCourt() {
           </div>
         `;
       }).join('');
+      postRenderPolishes();
     }
   } catch (err) {
     console.error(err);
@@ -910,6 +922,7 @@ async function renderBlockerWeb() {
         `).join('')}
       </div>
     `;
+    postRenderPolishes();
   } catch (err) {
     console.error(err);
     const container = document.getElementById('blocker-web-container');
@@ -974,8 +987,10 @@ function renderAskSynapse() {
           </div>
         `;
       }).join('');
+      postRenderPolishes();
     }
   });
+  postRenderPolishes();
 }
 
 function renderLogin(startAsSignUp: boolean = false) {
@@ -1100,10 +1115,10 @@ function renderLandingPage() {
       </video>
       
       <!-- Gradient Overlay to blend with UI -->
-      <div class="absolute inset-0 bg-linear-to-tr from-[#15161A]/90 via-[#15161A]/60 to-transparent z-10 pointer-events-none"></div>
+      <div class="absolute inset-0 bg-linear-to-tr from-[#15161A]/85 via-[#15161A]/55 to-transparent z-10 pointer-events-none"></div>
 
       <!-- Navbar -->
-      <header class="fixed top-0 left-0 w-full landing-container-padding py-5 flex justify-between items-center z-30 bg-transparent">
+      <header class="fixed top-0 left-0 w-full landing-container-padding py-5 flex justify-between items-center z-30 landing-glass-header">
         <!-- Logo -->
         <div class="flex items-center gap-3">
           <span class="text-[21px] sm:text-[26px] font-heading tracking-tight text-ink font-bold select-none">Nexus AI®</span>
@@ -1120,8 +1135,8 @@ function renderLandingPage() {
 
         <!-- Desktop CTA -->
         <div class="hidden md:flex items-center gap-6">
-          <a href="#login" class="text-[20px] text-ink hover:opacity-60 transition-opacity">Sign In</a>
-          <a href="#signup" class="text-[20px] text-ink hover:opacity-60 transition-opacity">Sign Up</a>
+          <a href="#login" class="text-[20px] text-ink font-normal hover:opacity-60 transition-opacity">Sign In</a>
+          <a href="#signup" class="text-[20px] text-ink font-normal hover:opacity-60 transition-opacity">Sign Up</a>
         </div>
 
         <!-- Mobile Hamburger -->
@@ -1138,7 +1153,7 @@ function renderLandingPage() {
         <a href="#features" class="mobile-nav-link text-[32px] font-medium text-black">Features</a>
         <a href="#security" class="mobile-nav-link text-[32px] font-medium text-black">Security</a>
         <a href="#integrations" class="mobile-nav-link text-[32px] font-medium text-black">Integrations</a>
-        <div class="h-px bg-white/10 w-full max-w-[600px] my-6"></div>
+        <div class="h-[1px] w-full bg-black/10 my-2"></div>
         <a href="#login" class="mobile-nav-link text-[32px] font-medium text-black">Sign In</a>
         <a href="#signup" class="mobile-nav-link text-[32px] font-medium text-black">Sign Up</a>
       </div>
@@ -1184,43 +1199,43 @@ function renderLandingPage() {
             <!-- integration boxes with gap and clean modern fonts -->
             <div class="grid grid-cols-1 md:grid-cols-3 subsystems-grid-gap pl-4 sm:pl-8">
               <!-- Mastra -->
-              <div class="border border-black/10 rounded-xl p-8 bg-white/90 backdrop-blur shadow-sm flex flex-col justify-between hover:border-primary/50 transition-all duration-300 min-h-[300px]">
+              <div class="glow-card glow-card-lg flex flex-col justify-between min-h-[350px]" style="background-color: rgba(20, 20, 20, 0.75) !important; border-color: rgba(255, 255, 255, 0.15) !important; color: white !important;">
                 <div>
-                  <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+                  <div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-10 -mt-3">
                     <span class="text-primary font-bold text-xl">M</span>
                   </div>
-                  <h3 class="text-2xl font-bold text-ink mb-3 tracking-tight font-body">Mastra Orchestration</h3>
-                  <p class="text-[15px] text-muted leading-relaxed font-body">Mastra orchestrates our multi-agent workflows, managing transcript summaries, action item extraction, and commitment verification.</p>
+                  <h3 class="text-2xl font-bold text-white mb-3 tracking-tight font-body">Mastra Orchestration</h3>
+                  <p class="text-[15px] text-white/80 leading-relaxed font-body">Mastra orchestrates our multi-agent workflows, managing transcript summaries, action item extraction, and commitment verification.</p>
                 </div>
-                <div class="mt-8 text-xs font-mono font-semibold tracking-wider text-primary bg-primary/5 px-3 py-1.5 rounded-md w-fit">
+                <div class="mt-12 text-sm font-mono font-semibold tracking-wider text-primary-active bg-primary/20 px-4 py-2 rounded-md w-fit">
                   Active Workflow Node
                 </div>
               </div>
 
               <!-- Qdrant -->
-              <div class="border border-black/10 rounded-xl p-8 bg-white/90 backdrop-blur shadow-sm flex flex-col justify-between hover:border-indigo-500/50 transition-all duration-300 min-h-[300px]">
+              <div class="glow-card glow-card-lg flex flex-col justify-between min-h-[350px]" style="background-color: rgba(20, 20, 20, 0.75) !important; border-color: rgba(255, 255, 255, 0.15) !important; color: white !important;">
                 <div>
-                  <div class="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center mb-6">
-                    <span class="text-indigo-500 font-bold text-xl">Q</span>
+                  <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center mb-10 -mt-3">
+                    <span class="text-indigo-400 font-bold text-xl">Q</span>
                   </div>
-                  <h3 class="text-2xl font-bold text-ink mb-3 tracking-tight font-body">Qdrant Vector DB</h3>
-                  <p class="text-[15px] text-muted leading-relaxed font-body">Qdrant powers high-performance semantic search, indexing meeting memories for sub-millisecond context retrieval.</p>
+                  <h3 class="text-2xl font-bold text-white mb-3 tracking-tight font-body">Qdrant Vector DB</h3>
+                  <p class="text-[15px] text-white/80 leading-relaxed font-body">Qdrant powers high-performance semantic search, indexing meeting memories for sub-millisecond context retrieval.</p>
                 </div>
-                <div class="mt-8 text-xs font-mono font-semibold tracking-wider text-indigo-500 bg-indigo-500/5 px-3 py-1.5 rounded-md w-fit">
+                <div class="mt-12 text-sm font-mono font-semibold tracking-wider text-indigo-300 bg-indigo-500/20 px-4 py-2 rounded-md w-fit">
                   Integrated Memory Store
                 </div>
               </div>
 
               <!-- Enkrypt AI -->
-              <div class="border border-black/10 rounded-xl p-8 bg-white/90 backdrop-blur shadow-sm flex flex-col justify-between hover:border-emerald-500/50 transition-all duration-300 min-h-[300px]">
+              <div class="glow-card glow-card-lg flex flex-col justify-between min-h-[350px]" style="background-color: rgba(20, 20, 20, 0.75) !important; border-color: rgba(255, 255, 255, 0.15) !important; color: white !important;">
                 <div>
-                  <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
-                    <span class="text-emerald-500 font-bold text-xl">E</span>
+                  <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mb-10 -mt-3">
+                    <span class="text-emerald-400 font-bold text-xl">E</span>
                   </div>
-                  <h3 class="text-2xl font-bold text-ink mb-3 tracking-tight font-body">Enkrypt AI Safety</h3>
-                  <p class="text-[15px] text-muted leading-relaxed font-body">Enkrypt AI secures all LLM interactions, validating outputs to prevent hallucinations and compliance violations.</p>
+                  <h3 class="text-2xl font-bold text-white mb-3 tracking-tight font-body">Enkrypt AI Safety</h3>
+                  <p class="text-[15px] text-white/80 leading-relaxed font-body">Enkrypt AI secures all LLM interactions, validating outputs to prevent hallucinations and compliance violations.</p>
                 </div>
-                <div class="mt-8 text-xs font-mono font-semibold tracking-wider text-emerald-500 bg-emerald-500/5 px-3 py-1.5 rounded-md w-fit">
+                <div class="mt-12 text-sm font-mono font-semibold tracking-wider text-emerald-300 bg-emerald-500/20 px-4 py-2 rounded-md w-fit">
                   Security Compliance Guard
                 </div>
               </div>
@@ -1771,6 +1786,7 @@ async function renderSettings() {
 
     alert('Settings updated successfully.');
   });
+  postRenderPolishes();
 }
 
 // Render Workspace Page (Team Management)
@@ -1876,6 +1892,7 @@ async function renderWorkspace() {
         </div>
       </div>
     `;
+    postRenderPolishes();
 
     document.getElementById('btn-add-member')?.addEventListener('click', async () => {
       const nameInput = document.getElementById('member-name') as HTMLInputElement;
@@ -1914,6 +1931,7 @@ async function renderWorkspace() {
 
   await loadWorkspaceData();
   drawUI();
+  postRenderPolishes();
 }
 
 

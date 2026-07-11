@@ -138,6 +138,14 @@ code, pre, .mono {
   );
 }
 
+.title-logo {
+  height: 18px !important;
+  width: auto !important;
+  margin-right: 8px !important;
+  border-radius: 4px !important;
+  object-fit: contain !important;
+}
+
 .drag-region .title {
   font-family: 'Inter', sans-serif;
   font-weight: 600;
@@ -252,6 +260,41 @@ code, pre, .mono {
   flex-shrink: 0;
 }
 
+.transparency-panel {
+  padding: 12px 24px;
+  border-top: 1px solid var(--hairline);
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transparency-title {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.transparency-logs {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+  max-height: 80px;
+  overflow-y: auto;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-x: hidden;
+}
+
+.transparency-idle {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
 .sidebar-footer {
   padding: 16px 16px 0;
   border-top: 1px solid var(--hairline);
@@ -296,19 +339,104 @@ code, pre, .mono {
 }
 
 /* ─── Card / Panel ───────────────────────────── */
-.flat-panel {
-  background: var(--canvas);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
-  padding: 28px 32px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(20, 20, 19, 0.06);
-  transition: box-shadow 0.2s, border-color 0.2s;
+.flat-panel,
+.glow-card {
+  position: relative;
+  --x: 0;
+  --y: 0;
+  --xp: 0;
+  --yp: 0;
+  --radius: 14;
+  --border: 2;
+  --size: 200;
+  --backdrop: rgba(255, 255, 255, 0.75);
+  --backup-border: var(--hairline);
+
+  
+  --border-size: calc(var(--border, 2) * 1px);
+  --spotlight-size: calc(var(--size, 150) * 1px);
+  
+  background-image: radial-gradient(
+    var(--spotlight-size) var(--spotlight-size) at
+    calc(var(--x, 0) * 1px)
+    calc(var(--y, 0) * 1px),
+    rgba(255, 255, 255, 0.08), transparent
+  ) !important;
+  background-color: var(--backdrop) !important;
+  background-size: calc(100% + (2 * var(--border-size))) calc(100% + (2 * var(--border-size))) !important;
+  background-position: 50% 50% !important;
+  background-attachment: fixed !important;
+  border: var(--border-size) solid var(--backup-border) !important;
+  border-radius: calc(var(--radius) * 1px) !important;
+  touch-action: none;
+  overflow: hidden;
+  transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  
+  padding: 28px 32px !important;
+  margin-bottom: 24px !important;
 }
 
-.flat-panel:hover {
-  box-shadow: 0 2px 8px rgba(20, 20, 19, 0.09);
-  border-color: var(--surface-cream-strong);
+body.dark .flat-panel,
+body.dark .glow-card {
+  --backdrop: rgba(31, 30, 27, 0.75);
+}
+
+/* Glowing Border Effect */
+.flat-panel::before,
+.flat-panel::after,
+.glow-card::before,
+.glow-card::after {
+  pointer-events: none;
+  content: "";
+  position: absolute;
+  inset: calc(var(--border-size) * -1);
+  border: var(--border-size) solid transparent;
+  border-radius: calc(var(--radius) * 1px);
+  background-attachment: fixed;
+  background-size: calc(100% + (2 * var(--border-size))) calc(100% + (2 * var(--border-size)));
+  background-repeat: no-repeat;
+  background-position: 50% 50%;
+  
+  mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
+  mask-clip: padding-box, border-box;
+  mask-composite: intersect;
+  -webkit-mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
+  -webkit-mask-clip: padding-box, border-box;
+  -webkit-mask-composite: destination-in, source-over;
+}
+
+.flat-panel::before,
+.glow-card::before {
+  background-image: radial-gradient(
+    calc(var(--spotlight-size) * 0.75) calc(var(--spotlight-size) * 0.75) at
+    calc(var(--x, 0) * 1px)
+    calc(var(--y, 0) * 1px),
+    rgba(255, 255, 255, 0.35), transparent 100%
+  );
+  filter: brightness(1.2);
+}
+
+body.dark .flat-panel::before,
+body.dark .glow-card::before {
+  background-image: radial-gradient(
+    calc(var(--spotlight-size) * 0.75) calc(var(--spotlight-size) * 0.75) at
+    calc(var(--x, 0) * 1px)
+    calc(var(--y, 0) * 1px),
+    rgba(255, 255, 255, 0.22), transparent 100%
+  );
+}
+
+.flat-panel::after,
+.glow-card::after {
+  background-image: radial-gradient(
+    calc(var(--spotlight-size) * 0.5) calc(var(--spotlight-size) * 0.5) at
+    calc(var(--x, 0) * 1px)
+    calc(var(--y, 0) * 1px),
+    rgba(255, 255, 255, 0.15), transparent 100%
+  );
 }
 
 .flat-panel h2 {
@@ -868,4 +996,137 @@ body.dark .switch input:checked + .slider-cache:before {
 
 .btn-logout:hover {
   background: var(--hairline);
+}
+
+/* ─── Glassmorphism Spotlight Cards ─── */
+@keyframes shine {
+  0% {
+    top: 100%;
+    left: -100%;
+  }
+  50%,
+  100% {
+    top: -50%;
+    left: 80%;
+  }
+}
+
+@keyframes ani {
+  0% {
+    transform: translateX(0%) scale(1);
+  }
+  50% {
+    transform: translateX(-100%) scale(0.8);
+  }
+  100% {
+    transform: translateX(0%) scale(1);
+  }
+}
+
+/* Glass Shine Overlay */
+.glass-shine-shine {
+  position: absolute;
+  top: -150%;
+  left: -150%;
+  width: 300%;
+  height: 300%;
+  background: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.22) 40%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(-45deg);
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.glow-card:hover .glass-shine-shine {
+  opacity: 1;
+  animation: shine 1.6s infinite;
+}
+
+.dashboard-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+  gap: 24px !important;
+  margin-top: 20px !important;
+  margin-bottom: 24px !important;
+}
+
+.glow-card-lg {
+  padding: 40px 48px !important;
+}
+
+@media (max-width: 640px) {
+  .glow-card-lg {
+    padding: 24px 28px !important;
+  }
+}
+
+.landing-glass-header {
+  background: rgba(20, 20, 20, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.landing-glass-header a,
+.landing-glass-header span,
+.landing-glass-header nav,
+.landing-glass-header div {
+  color: #ffffff !important;
+}
+
+.landing-glass-header a:hover {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.landing-glass-header #mobile-menu-btn span {
+  background-color: #ffffff !important;
+}
+
+.landing-glass-header a[href="#login"] {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  padding: 8px 18px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.landing-glass-header a[href="#login"]:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.landing-glass-header a[href="#signup"] {
+  background: var(--primary) !important;
+  border: 1px solid var(--primary) !important;
+  color: white !important;
+  padding: 8px 18px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.landing-glass-header a[href="#signup"]:hover {
+  background: var(--primary-active) !important;
+  border-color: var(--primary-active) !important;
+  opacity: 0.95 !important;
+}
+
+body.dark .landing-glass-header {
+  background: rgba(24, 23, 21, 0.85) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
 }

@@ -62,5 +62,28 @@
     "prisma": "^5.22.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.10"
+  },
+  "build": {
+    "appId": "com.synapse.desktop",
+    "productName": "Synapse",
+    "directories": {
+      "output": "dist-build"
+    },
+    "win": {
+      "icon": "electron/assets/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "electron/assets/**/*",
+      "package.json"
+    ]
   }
 }

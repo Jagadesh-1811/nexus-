@@ -157,12 +157,12 @@
   <!-- Custom Title Bar -->
   <div id="title-bar">
     <div class="drag-region">
-      <span class="logo"></span>
-      <span class="title">NEXUS</span>
+      <img src="../electron/assets/logoof nexus.jpeg" alt="SPG" class="title-logo" />
+      <span class="title title-text">NEXUS</span>
     </div>
-    <div class="window-controls" style="display: flex; align-items: center;">
-      <button id="btn-bg-status" class="control-btn" title="Toggle Background Auto-Capture" style="margin-right: 10px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; border-radius: 4px; color: var(--muted); -webkit-app-region: no-drag; transition: all 0.2s;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="radar-icon" style="transition: transform 0.3s ease;"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    <div class="window-controls">
+      <button id="btn-bg-status" class="control-btn bg-status-btn" title="Toggle Background Auto-Capture">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="radar-icon"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </button>
       <button id="btn-minimize" class="control-btn">—</button>
       <button id="btn-maximize" class="control-btn">⬜</button>
@@ -196,6 +196,14 @@
           <span class="icon"></span> Settings
         </a>
       </div>
+      
+      <div id="transparency-panel" class="transparency-panel">
+        <h4 class="transparency-title">Activity</h4>
+        <div id="transparency-logs" class="transparency-logs">
+          <span class="transparency-idle">logs...</span>
+        </div>
+      </div>
+
       <div class="sidebar-footer">
         <div class="resource-indicator">
           <span>CPU: <strong id="cpu-load">0%</strong></span>
@@ -205,15 +213,15 @@
           <span class="status-dot online"></span>
           <span class="status-text">Ollama Active</span>
         </div>
-        <div class="profile-section" style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px; border-top: 1px solid var(--hairline); padding-top: 16px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div id="profile-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: #cc785c; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;">U</div>
-            <div style="display: flex; flex-direction: column; min-width: 0;">
-              <span id="profile-name" style="font-size: 13px; font-weight: 600; color: var(--ink);">User</span>
-              <span id="profile-email" style="font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">User Email</span>
+        <div class="profile-section">
+          <div class="profile-info-container">
+            <div id="profile-avatar" class="profile-avatar">U</div>
+            <div class="profile-text-container">
+              <span id="profile-name" class="profile-name">User</span>
+              <span id="profile-email" class="profile-email">User Email</span>
             </div>
           </div>
-          <button id="btn-logout" style="background: var(--surface-soft); border: 1px solid var(--hairline); color: #c64545; cursor: pointer; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 6px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+          <button id="btn-logout" class="btn-logout">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             Logout
           </button>

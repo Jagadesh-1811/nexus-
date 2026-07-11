@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+/* stylelint-disable-next-line at-rule-no-unknown */
 @source "./main.ts";
+/* stylelint-disable-next-line at-rule-no-unknown */
 @source "./index.html";
 
 /* Nexus · Claude / Anthropic Design System
@@ -118,6 +120,7 @@ code, pre, .mono {
   display: flex;
   align-items: center;
   padding-left: 16px;
+  /* stylelint-disable-next-line property-no-vendor-prefix, plugin/no-unsupported-browser-features */
   -webkit-app-region: drag;
 }
 
@@ -147,6 +150,8 @@ code, pre, .mono {
 .window-controls {
   display: flex;
   height: 100%;
+  align-items: center;
+  /* stylelint-disable-next-line property-no-vendor-prefix, plugin/no-unsupported-browser-features */
   -webkit-app-region: no-drag;
 }
 
@@ -731,8 +736,8 @@ body.dark .switch input:checked + .slider-cache:before {
   align-items: center !important;
   justify-content: center !important;
   background-color: rgba(255, 255, 255, 0.45) !important;
-  backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
   color: var(--ink) !important;
   border: 1px solid rgba(20, 20, 19, 0.1) !important;
   border-radius: 9999px !important;
@@ -772,4 +777,95 @@ body.dark .switch input:checked + .slider-cache:before {
 }
 .subsystems-grid-gap {
   gap: 32px !important;
+}
+
+/* ─── Profile & Header Controls ──────────────── */
+.bg-status-btn {
+  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  color: var(--muted);
+  /* stylelint-disable-next-line property-no-vendor-prefix, plugin/no-unsupported-browser-features */
+  -webkit-app-region: no-drag;
+  transition: all 0.2s;
+}
+
+.radar-icon {
+  transition: transform 0.3s ease;
+}
+
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 16px;
+}
+
+.profile-info-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.profile-text-container {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.profile-email {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-logout {
+  background: var(--surface-soft);
+  border: 1px solid var(--hairline);
+  color: var(--risk-red);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-logout:hover {
+  background: var(--hairline);
 }

@@ -82,14 +82,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           supabaseId: 'test-supabase-id',
           email: 'test-user@example.com',
           name: 'Test User',
-          role: 'LEAD',
+          role: 'LEAD_OWNER',
         },
       });
 
       req.auth = {
         userId: 'test-user-id',
         sessionId: 'test-session-id',
-        role: 'ADMIN',
+        role: 'EXECUTIVE',
       };
       next();
       return;
@@ -126,13 +126,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 // 4. RBAC — Role-Based Access Control
 // ============================================================
 
-type UserRole = 'ADMIN' | 'PROJECT_MANAGER' | 'ENGINEER_LEAD' | 'EXECUTIVE' | 'VIEWER';
+type UserRole = 'MEMBER' | 'LEAD_OWNER' | 'EXECUTIVE' | 'VIEWER';
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  ADMIN: 100,
-  PROJECT_MANAGER: 80,
-  ENGINEER_LEAD: 60,
-  EXECUTIVE: 50,
+  EXECUTIVE: 100,
+  LEAD_OWNER: 80,
+  MEMBER: 50,
   VIEWER: 10,
 };
 

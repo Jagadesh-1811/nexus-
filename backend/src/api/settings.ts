@@ -10,7 +10,7 @@ import { logger } from '../config/logger';
 const router = Router();
 
 // GET /api/settings
-router.get('/', requireAuth, requireRole('ADMIN', 'PROJECT_MANAGER'), async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireRole('EXECUTIVE', 'LEAD_OWNER'), async (req: Request, res: Response) => {
   let settings = await prisma.settings.findFirst();
   if (!settings) {
     settings = await prisma.settings.create({
@@ -25,7 +25,7 @@ router.get('/', requireAuth, requireRole('ADMIN', 'PROJECT_MANAGER'), async (req
 });
 
 // PUT /api/settings
-router.put('/', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
+router.put('/', requireAuth, requireRole('EXECUTIVE'), async (req: Request, res: Response) => {
   const UpdateSchema = z.object({
     requireHumanApproval: z.boolean().optional(),
     autoJiraEnabled: z.boolean().optional(),
@@ -71,7 +71,7 @@ router.put('/', requireAuth, requireRole('ADMIN'), async (req: Request, res: Res
 });
 
 // POST /api/settings/api-keys — Generate new API key
-router.post('/api-keys', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
+router.post('/api-keys', requireAuth, requireRole('EXECUTIVE'), async (req: Request, res: Response) => {
   const { name, scopes, expiresInDays } = req.body as { name: string; scopes: string[]; expiresInDays?: number };
 
   const rawKey = generateApiKey('syn');
@@ -105,7 +105,7 @@ router.post('/api-keys', requireAuth, requireRole('ADMIN'), async (req: Request,
 });
 
 // GET /api/settings/audit-logs
-router.get('/audit-logs', requireAuth, requireRole('ADMIN'), async (req: Request, res: Response) => {
+router.get('/audit-logs', requireAuth, requireRole('EXECUTIVE'), async (req: Request, res: Response) => {
   const { limit = '50', offset = '0', severity, action } = req.query;
 
   const logs = await prisma.auditLog.findMany({

@@ -168,11 +168,30 @@ async function updateSidebarProfile() {
   }
 }
 
+function applyRoleRestrictions(role: string) {
+  const isViewer = role === 'VIEWER';
+  const isMember = role === 'MEMBER';
+  
+  const ingestNav = document.querySelector('a[data-page="upload"]') as HTMLElement;
+  if (ingestNav) ingestNav.style.display = isViewer ? 'none' : 'flex';
+  
+  const courtNav = document.querySelector('a[data-page="court"]') as HTMLElement;
+  if (courtNav) courtNav.style.display = isViewer ? 'none' : 'flex';
+
+  const workspaceNav = document.querySelector('a[data-page="workspace"]') as HTMLElement;
+  if (workspaceNav) workspaceNav.style.display = (isViewer || isMember) ? 'none' : 'flex';
+  
+  const settingsNav = document.querySelector('a[data-page="settings"]') as HTMLElement;
+  if (settingsNav) settingsNav.style.display = (isViewer || isMember) ? 'none' : 'flex';
+}
+
 async function checkAuthAndNavigate(page: string) {
   try {
     const session = await window.synapse.auth.getSession();
     if (session) {
       localStorage.setItem('has_logged_in', 'true');
+      const role = session.user?.app_metadata?.role || session.user?.user_metadata?.role || 'EXECUTIVE';
+      applyRoleRestrictions(role);
     }
     if (!session && localStorage.getItem('has_logged_in') !== 'true') {
       const sidebar = document.getElementById('sidebar');
@@ -228,6 +247,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-close')?.addEventListener('click', () => {
     window.close();
   });
+
+  // Transparency Logs Wire-up
+  if (window.synapse && window.synapse.ingest && window.synapse.ingest.onProgress) {
+    window.synapse.ingest.onProgress((_event: any, data: any) => {
+      const panel = document.getElementById('transparency-logs');
+      if (panel) {
+        if (panel.innerHTML.includes('Idle...')) {
+          panel.innerHTML = '';
+        }
+        const log = document.createElement('div');
+        log.style.marginBottom = '2px';
+        log.innerHTML = `<strong style="color: #5db872;">[${data.stage || 'Update'}]</strong> ${data.message || data.progress + '%'}`;
+        panel.appendChild(log);
+        panel.scrollTop = panel.scrollHeight;
+      }
+    });
+  }
 
   // Background Auto-Capture Status Icon Button hook
   const bgStatusBtn = document.getElementById('btn-bg-status');
@@ -1064,7 +1100,7 @@ function renderLandingPage() {
       </video>
       
       <!-- Gradient Overlay to blend with UI -->
-      <div class="fixed inset-0 bg-gradient-to-tr from-canvas/95 via-canvas/60 to-transparent z-0 pointer-events-none"></div>
+      <div class="absolute inset-0 bg-linear-to-tr from-[#15161A]/90 via-[#15161A]/60 to-transparent z-10 pointer-events-none"></div>
 
       <!-- Navbar -->
       <header class="fixed top-0 left-0 w-full landing-container-padding py-5 flex justify-between items-center z-30 bg-transparent">
@@ -1084,8 +1120,8 @@ function renderLandingPage() {
 
         <!-- Desktop CTA -->
         <div class="hidden md:flex items-center gap-6">
-          <a href="#login" class="text-[20px] text-ink font-normal hover:opacity-60 transition-opacity">Sign In</a>
-          <a href="#signup" class="text-[20px] text-ink font-normal hover:opacity-60 transition-opacity">Sign Up</a>
+          <a href="#login" class="text-[20px] text-ink hover:opacity-60 transition-opacity">Sign In</a>
+          <a href="#signup" class="text-[20px] text-ink hover:opacity-60 transition-opacity">Sign Up</a>
         </div>
 
         <!-- Mobile Hamburger -->
@@ -1102,7 +1138,7 @@ function renderLandingPage() {
         <a href="#features" class="mobile-nav-link text-[32px] font-medium text-black">Features</a>
         <a href="#security" class="mobile-nav-link text-[32px] font-medium text-black">Security</a>
         <a href="#integrations" class="mobile-nav-link text-[32px] font-medium text-black">Integrations</a>
-        <div class="h-[1px] w-full bg-black/10 my-2"></div>
+        <div class="h-px bg-white/10 w-full max-w-[600px] my-6"></div>
         <a href="#login" class="mobile-nav-link text-[32px] font-medium text-black">Sign In</a>
         <a href="#signup" class="mobile-nav-link text-[32px] font-medium text-black">Sign Up</a>
       </div>
@@ -1532,9 +1568,9 @@ async function renderSettings() {
             <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Configure the visual interface theme of the application.</div>
           </div>
           <select id="select-theme" style="width: 180px; padding: 6px 10px; background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink); border-radius: var(--r-sm); outline: none; font-size: 13.5px; font-weight: 500;">
-            <option value="system">⚡ System Theme</option>
-            <option value="light">☀️ Light Theme</option>
-            <option value="dark">🌙 Dark Theme</option>
+            <option value="system">System Theme</option>
+            <option value="light">Light Theme</option>
+            <option value="dark">Dark Theme</option>
           </select>
         </div>
       </div>
@@ -1594,20 +1630,26 @@ async function renderSettings() {
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div>
-            <label>Storage Location</label>
-            <input type="text" id="input-storage-path" readonly style="cursor: not-allowed; background: var(--surface-soft);">
+        <div style="margin-top: 16px; margin-bottom: 16px; background: var(--surface-card); border: 1px solid var(--primary); border-radius: var(--r-md); padding: 16px;">
+          <h4 style="margin: 0 0 8px 0; color: var(--primary); font-size: 14px;">Local Storage Policy</h4>
+          <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--muted); line-height: 1.4;">
+            Your meeting recordings are securely saved on your local computer. They are <strong>never</strong> blindly uploaded to the cloud or the project directory.
+          </p>
+          <div style="background: var(--canvas); border: 1px solid var(--hairline); padding: 8px 12px; border-radius: var(--r-sm); font-size: 12px; font-family: monospace; color: var(--ink); margin-bottom: 12px; word-break: break-all;">
+            <span id="label-storage-path">Loading path...</span>
           </div>
-          <div>
-            <label>Auto-Delete Raw Recordings</label>
-            <select id="select-retention" style="width: 100%; padding: 10px; background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink); border-radius: var(--r-md); outline: none;">
-              <option value="1">After 1 day</option>
-              <option value="3">After 3 days</option>
-              <option value="7">After 7 days</option>
-              <option value="14">After 14 days</option>
-              <option value="0">Never delete raw audio</option>
-            </select>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 13px; color: var(--ink);">
+              <label style="margin-right: 8px; font-weight: 500;">Auto-Delete Recordings:</label>
+              <select id="select-retention" style="padding: 4px 8px; background: var(--canvas); border: 1px solid var(--hairline); color: var(--ink); border-radius: var(--r-sm); outline: none;">
+                <option value="1">After 1 day</option>
+                <option value="3">After 3 days</option>
+                <option value="7">After 7 days</option>
+                <option value="14">After 14 days</option>
+                <option value="0">Never delete</option>
+              </select>
+            </div>
+            <button id="btn-acknowledge-storage" class="btn primary" style="padding: 6px 12px; font-size: 12px;">Acknowledge & Accept</button>
           </div>
         </div>
 
@@ -1627,8 +1669,9 @@ async function renderSettings() {
   const toggleEl = document.getElementById('toggle-autocap') as HTMLInputElement;
   const toggleShowOverlayEl = document.getElementById('toggle-show-overlay') as HTMLInputElement;
   const methodEl = document.getElementById('select-detection-method') as HTMLSelectElement;
-  const storageEl = document.getElementById('input-storage-path') as HTMLInputElement;
+  const storageLabelEl = document.getElementById('label-storage-path');
   const retentionEl = document.getElementById('select-retention') as HTMLSelectElement;
+  const ackBtnEl = document.getElementById('btn-acknowledge-storage') as HTMLButtonElement;
   const checkboxes = document.querySelectorAll('.app-checkbox') as NodeListOf<HTMLInputElement>;
 
   if (toggleLocalCacheEl) toggleLocalCacheEl.checked = generalSettings?.enableLocalCache ?? true;
@@ -1636,8 +1679,29 @@ async function renderSettings() {
   if (toggleEl) toggleEl.checked = config.enabled;
   if (toggleShowOverlayEl) toggleShowOverlayEl.checked = config.showOverlay ?? true;
   if (methodEl) methodEl.value = config.method;
-  if (storageEl) storageEl.value = config.storagePath;
+  if (storageLabelEl) storageLabelEl.innerText = config.storagePath;
   if (retentionEl) retentionEl.value = String(config.retentionDays);
+
+  if (ackBtnEl) {
+    if (config.storageAcknowledged) {
+      ackBtnEl.innerText = '✓ Accepted';
+      ackBtnEl.disabled = true;
+      ackBtnEl.style.opacity = '0.5';
+      ackBtnEl.style.cursor = 'not-allowed';
+      ackBtnEl.classList.remove('primary');
+    }
+    
+    ackBtnEl.addEventListener('click', async () => {
+      ackBtnEl.innerText = '✓ Accepted';
+      ackBtnEl.disabled = true;
+      ackBtnEl.style.opacity = '0.5';
+      ackBtnEl.style.cursor = 'not-allowed';
+      ackBtnEl.classList.remove('primary');
+      config.storageAcknowledged = true;
+      // Save it immediately
+      await window.synapse.settings.updateAutocapture({ storageAcknowledged: true });
+    });
+  }
 
   checkboxes.forEach(cb => {
     cb.checked = config.appList.includes(cb.value);
@@ -1687,7 +1751,8 @@ async function renderSettings() {
       showOverlay: toggleShowOverlayEl.checked,
       method: methodEl.value,
       appList: list,
-      retentionDays: parseInt(retentionEl.value)
+      retentionDays: parseInt(retentionEl.value),
+      storageAcknowledged: config.storageAcknowledged
     };
 
     // Save auto-capture settings

@@ -90,13 +90,49 @@ let autoCaptureSettings = {
   method: 'app' as DetectionMethod,
   appList: ['Zoom Meeting', 'Microsoft Teams', 'Google Meet', 'Webex'],
   storagePath: path.join(app.getPath('userData'), 'nexus-auto-recordings'),
-  retentionDays: 7
+  retentionDays: 7,
+  storageAcknowledged: false
 };
 
 // Ensure auto-capture directory exists
 if (!fs.existsSync(autoCaptureSettings.storagePath)) {
   fs.mkdirSync(autoCaptureSettings.storagePath, { recursive: true });
 }
+
+function cleanupOldRecordings() {
+  const retentionDays = autoCaptureSettings.retentionDays;
+  if (retentionDays === 0) return; // 0 means Never delete
+
+  const storagePath = autoCaptureSettings.storagePath;
+  if (!fs.existsSync(storagePath)) return;
+
+  try {
+    const files = fs.readdirSync(storagePath);
+    const now = Date.now();
+    const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+
+    let deletedCount = 0;
+    for (const file of files) {
+      const filePath = path.join(storagePath, file);
+      const stats = fs.statSync(filePath);
+      
+      if (now - stats.mtimeMs > retentionMs) {
+        fs.unlinkSync(filePath);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      console.log(`[Auto-Delete] Cleaned up ${deletedCount} old raw audio files.`);
+    }
+  } catch (err) {
+    console.error('[Auto-Delete] Error cleaning up old recordings:', err);
+  }
+}
+
+// Run cleanup on startup and schedule every 24 hours
+cleanupOldRecordings();
+setInterval(cleanupOldRecordings, 24 * 60 * 60 * 1000);
 
 let appSettings = {
   theme: 'ink-navy',
@@ -156,12 +192,18 @@ async function uploadToSupabaseStorage(filePath: string, meetingId: string): Pro
 }
 
 async function runInProcessPipeline(event: any, filePath: string, title: string, userId: string) {
-  const wsId = 'default_workspace';
-  await prisma.workspace.upsert({
-    where: { id: wsId },
-    update: {},
-    create: { id: wsId, name: 'Default Workspace' },
+  const memberRecord = await prisma.workspaceMember.findFirst({
+    where: { userId },
   });
+  let wsId = memberRecord?.workspaceId;
+  if (!wsId) {
+    wsId = uuidv4();
+    await prisma.workspace.upsert({
+      where: { id: wsId },
+      update: {},
+      create: { id: wsId, name: 'Personal Workspace' },
+    });
+  }
 
   // Get active session user info to avoid mock email/name
   const session = await supabase.auth.getSession();
@@ -357,13 +399,13 @@ function registerIpcHandlers() {
         }
       });
 
-      // If no membership exists, create a default workspace and make this user the Lead Owner
+      // If no membership exists, create a personal workspace and make this user the Lead Owner
       if (!memberRecord) {
-        const wsId = 'default_workspace';
+        const wsId = uuidv4();
         const workspace = await prisma.workspace.upsert({
           where: { id: wsId },
           update: {},
-          create: { id: wsId, name: 'Default Workspace' },
+          create: { id: wsId, name: 'Personal Workspace' },
         });
 
         // Ensure user exists

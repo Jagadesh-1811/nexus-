@@ -3,9 +3,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export function createSplashWindow(): BrowserWindow {
-  let iconPath = path.join(__dirname, '../../assets/icon.png');
+  let iconPath = path.join(__dirname, '../../assets/logoof nexus.jpeg');
   if (!fs.existsSync(iconPath)) {
-    iconPath = path.join(__dirname, '../../../electron/assets/icon.png');
+    iconPath = path.join(__dirname, '../../../electron/assets/logoof nexus.jpeg');
   }
 
   const win = new BrowserWindow({

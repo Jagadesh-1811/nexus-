@@ -76,7 +76,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 router.post(
   '/:id/approve',
   requireAuth,
-  requireRole('PROJECT_MANAGER', 'ADMIN'),
+  requireRole('LEAD_OWNER', 'EXECUTIVE'),
   async (req: Request, res: Response) => {
     const { id: meetingId } = req.params;
     const { actionItemIds } = req.body as { actionItemIds: string[] };
@@ -108,7 +108,7 @@ router.post(
 router.delete(
   '/:id',
   requireAuth,
-  requireRole('ADMIN'),
+  requireRole('EXECUTIVE'),
   async (req: Request, res: Response) => {
     const { id } = req.params;
     await prisma.meeting.delete({ where: { id: id as string } });

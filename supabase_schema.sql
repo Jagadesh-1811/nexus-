@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "workspace_members" (
   "id" TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   "workspace_id" TEXT NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE,
   "user_id" TEXT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-  "role" TEXT NOT NULL DEFAULT 'MEMBER', -- MEMBER, LEAD, EXECUTIVE, ADMIN
+  "role" TEXT NOT NULL DEFAULT 'MEMBER', -- MEMBER, LEAD_OWNER, EXECUTIVE, VIEWER
   "joined_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "workspace_members_uniq" UNIQUE ("workspace_id", "user_id")
 );

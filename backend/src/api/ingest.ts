@@ -18,6 +18,7 @@ import { ingestRateLimit } from '../security/rateLimiter';
 import { requireAuth, requireRole } from '../middleware/security';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { uploadRecordingToBucket } from '../services/supabase';
 
 const router = Router();
 
@@ -72,7 +73,7 @@ const IngestBodySchema = z.object({
 router.post(
   '/',
   requireAuth,
-  requireRole('PROJECT_MANAGER', 'ENGINEER_LEAD', 'ADMIN'),
+  requireRole('MEMBER', 'LEAD_OWNER', 'EXECUTIVE'),
   ingestRateLimit,
   upload.single('audio'),
   async (req: Request, res: Response) => {
@@ -119,12 +120,31 @@ router.post(
 
     try {
       // Ensure workspace exists
-      const wsId = body.workspaceId;
-      await prisma.workspace.upsert({
-        where: { id: wsId },
-        update: {},
-        create: { id: wsId, name: wsId === 'default_workspace' ? 'Default Workspace' : wsId },
-      });
+      let wsId = body.workspaceId;
+      if (wsId === 'default_workspace') {
+        const memberRecord = await prisma.workspaceMember.findFirst({
+          where: { userId: req.auth!.userId },
+        });
+        if (memberRecord) {
+          wsId = memberRecord.workspaceId;
+        } else {
+          wsId = uuidv4();
+          await prisma.workspace.upsert({
+            where: { id: wsId },
+            update: {},
+            create: { id: wsId, name: 'Personal Workspace' },
+          });
+        }
+      } else {
+        await prisma.workspace.upsert({
+          where: { id: wsId },
+          update: {},
+          create: { id: wsId, name: wsId },
+        });
+      }
+
+      // Upload recording to Supabase bucket
+      const uploadedUrl = await uploadRecordingToBucket(file.path, file.filename);
 
       // --- Create meeting record ---
       const meeting = await prisma.meeting.create({
@@ -134,6 +154,7 @@ router.post(
           title: body.title,
           status: 'PENDING',
           audioFileHash: fileHash,
+          audioUrl: uploadedUrl,
           participantNames: body.participantNames,
           projectTags: body.projectTags,
           createdById: req.auth!.userId,
@@ -212,7 +233,7 @@ router.post(
           });
 
           const failedStepId = Object.keys(runResult.results).find(
-            (stepId) => runResult.results[stepId].status === 'failed'
+            (stepId) => runResult.results[stepId]?.status === 'failed'
           );
 
           if (failedStepId) {

@@ -26,6 +26,7 @@ import { embed, embedMany, generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
+import path from 'path';
 
 // Synapse Local AI Services
 import { transcribeAudio } from '../../services/transcription';
@@ -238,7 +239,7 @@ Strict Rules:
             id: `ai_${Date.now()}_0`,
             description: "Deploy database schema and verify Qdrant connection",
             assignee: "Jagadish",
-            deadline: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+            deadline: new Date(Date.now() + 86400000).toISOString().split('T')[0] ?? null,
             priority: "HIGH"
           }
         ],
@@ -368,6 +369,18 @@ const persistStep = new Step({
 
     logger.info('Pipeline Step 5: Cloud Persistence', { meetingId });
 
+    // Save transcript locally alongside the audio file
+    if (input.audioFilePath) {
+      try {
+        const parsedPath = path.parse(input.audioFilePath);
+        const txtPath = path.join(parsedPath.dir, `${parsedPath.name}.txt`);
+        fs.writeFileSync(txtPath, transcript, 'utf8');
+        logger.info(`Saved local transcript to ${txtPath}`);
+      } catch (err) {
+        logger.warn('Failed to save local transcript:', err);
+      }
+    }
+
     // Encrypt transcript before storing
     const encryptedTranscript = encrypt(transcript);
 
@@ -447,7 +460,7 @@ const persistStep = new Step({
           },
         });
       }
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     emitPipelineEvent(meetingId, { step: 'persist', status: 'complete' });
     return { persisted: true };

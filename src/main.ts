@@ -950,11 +950,76 @@ function renderAskSynapse() {
           <div id="citations-list" style="margin-top: 6px;"></div>
         </div>
       </div>
+
+      <div id="ask-history-section" style="margin-top: 30px; border-top: 1px solid var(--hairline); padding-top: 20px; display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0;">Query History</h3>
+          <button id="btn-clear-history" class="btn" style="padding: 4px 8px; font-size: 11px; border-color: rgba(198,69,69,0.2); color: var(--risk-red); background: transparent;">Clear History</button>
+        </div>
+        <div id="history-items-container"></div>
+      </div>
     </div>
   `;
 
   const askInput = document.getElementById('ask-input') as HTMLInputElement;
   const askBtn = document.getElementById('btn-ask');
+
+  async function renderAskHistory() {
+    const container = document.getElementById('history-items-container');
+    const section = document.getElementById('ask-history-section');
+    if (!container || !section) return;
+
+    const history = JSON.parse(localStorage.getItem('nexus_ask_history') || '[]');
+    if (history.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+
+    let meetingMap = new Map<string, string>();
+    try {
+      const meetings = await window.synapse.meetings.list();
+      for (const m of meetings) {
+        meetingMap.set(m.id, m.title);
+      }
+    } catch (e) {}
+
+    container.innerHTML = history.map((h: any) => `
+      <div class="flat-panel" style="margin-bottom: 12px; background: var(--surface-soft); padding: 16px; border-color: var(--hairline); text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+          <strong style="color: var(--primary); font-size: 14px;">Q: ${h.question}</strong>
+          <span style="font-size: 11px; color: var(--muted); white-space: nowrap;">${h.time || ''}</span>
+        </div>
+        <p style="font-size: 13.5px; color: var(--body-strong); margin: 8px 0; line-height: 1.5;">${h.answer}</p>
+        ${h.citations && h.citations.length > 0 ? `
+          <div style="margin-top: 10px; border-top: 1px dashed var(--hairline); padding-top: 8px;">
+            <span style="font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase;">Citations:</span>
+            <div style="margin-top: 4px;">
+              ${h.citations.map((c: any) => {
+                const title = meetingMap.get(c.meetingId) || 'Untitled Meeting';
+                return `
+                  <div style="font-size: 11px; background: var(--surface-card); padding: 4px 8px; border-radius: var(--r-sm); margin-bottom: 4px; color: var(--muted); border: 1px solid var(--hairline);" class="mono">
+                    <strong>${title} (${c.meetingId}) [Timestamp ${c.timestamp}]:</strong> "${c.text}"
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+  }
+
+  // Load history initially
+  renderAskHistory();
+
+  const clearBtn = document.getElementById('btn-clear-history');
+  clearBtn?.addEventListener('click', () => {
+    if (confirm('Are you sure you want to clear your query history?')) {
+      localStorage.removeItem('nexus_ask_history');
+      renderAskHistory();
+    }
+  });
 
   askBtn?.addEventListener('click', async () => {
     const val = askInput.value.trim();
@@ -970,6 +1035,24 @@ function renderAskSynapse() {
 
     const res = await window.synapse.memory.ask(val);
     if (answerText) answerText.innerText = res.answer;
+    
+    // Save query & answer into local storage history
+    const historyItem = {
+      question: val,
+      answer: res.answer,
+      citations: res.citations.map((c: any) => ({
+        meetingId: c.meetingId,
+        timestamp: c.timestamp,
+        text: c.text
+      })),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const historyList = JSON.parse(localStorage.getItem('nexus_ask_history') || '[]');
+    historyList.unshift(historyItem);
+    localStorage.setItem('nexus_ask_history', JSON.stringify(historyList));
+    renderAskHistory();
+
     if (citationsList) {
       let meetingMap = new Map<string, string>();
       try {

@@ -222,36 +222,8 @@ Strict Rules:
       });
       object = res.object;
     } catch (err) {
-      logger.warn('Local LLM generateObject failed, falling back to mock extraction result', { error: String(err) });
-      object = {
-        summary: "This is a mock summary of the meeting commitments. The local AI engine was offline or missing the qwen2.5:14b model, so the system fell back to mock mode.",
-        decisions: [
-          {
-            title: "Setup PostgreSQL database",
-            context: "Needs schema definition",
-            impact: "Required for backend data persistence",
-            stakeholders: ["Priya", "Jagadish"],
-            reversible: true
-          }
-        ],
-        actionItems: [
-          {
-            id: `ai_${Date.now()}_0`,
-            description: "Deploy database schema and verify Qdrant connection",
-            assignee: "Jagadish",
-            deadline: new Date(Date.now() + 86400000).toISOString().split('T')[0] ?? null,
-            priority: "HIGH"
-          }
-        ],
-        risks: [
-          {
-            description: "Database connection timeout",
-            level: "MEDIUM",
-            mitigationSteps: "Add connection pooling and self-healing connection retry strategies",
-            owner: "Jagadish"
-          }
-        ]
-      };
+      logger.error('Extraction step failed', { error: String(err) });
+      throw err;
     }
 
     emitPipelineEvent(meetingId, {

@@ -12,46 +12,58 @@ export const qdrant = new QdrantClient({
 });
 
 const COLLECTION_NAME = env.OPENAI_API_KEY ? env.QDRANT_COLLECTION : `${env.QDRANT_COLLECTION}_local`;
-const VECTOR_SIZE = env.OPENAI_API_KEY ? 3072 : 768; // 3072 for text-embedding-3-large, 768 for nomic-embed-text
+const VECTOR_SIZE = env.OPENAI_API_KEY ? 3072 : (env.FEATHERLESS_API_KEY ? 4096 : 768); // 3072 for OpenAI, 4096 for Featherless Qwen3, 768 for local nomic
 
 // ============================================================
 // Collection Initialization
 // ============================================================
+
+async function createNewCollection(): Promise<void> {
+  await qdrant.createCollection(COLLECTION_NAME, {
+    vectors: {
+      size: VECTOR_SIZE,
+      distance: 'Cosine',
+    },
+    optimizers_config: {
+      default_segment_number: 2,
+    },
+    replication_factor: 1,
+  });
+
+  // Create payload indexes for fast filtering
+  await qdrant.createPayloadIndex(COLLECTION_NAME, {
+    field_name: 'meetingId',
+    field_schema: 'keyword',
+  });
+  await qdrant.createPayloadIndex(COLLECTION_NAME, {
+    field_name: 'contentType',
+    field_schema: 'keyword',
+  });
+  await qdrant.createPayloadIndex(COLLECTION_NAME, {
+    field_name: 'projectTags',
+    field_schema: 'keyword',
+  });
+
+  logger.info(`Qdrant collection "${COLLECTION_NAME}" created`, { vectorSize: VECTOR_SIZE });
+}
 
 export async function initializeQdrantCollection(): Promise<void> {
   try {
     const collections = await qdrant.getCollections();
     const exists = collections.collections.some(c => c.name === COLLECTION_NAME);
 
-    if (!exists) {
-      await qdrant.createCollection(COLLECTION_NAME, {
-        vectors: {
-          size: VECTOR_SIZE,
-          distance: 'Cosine',
-        },
-        optimizers_config: {
-          default_segment_number: 2,
-        },
-        replication_factor: 1,
-      });
-
-      // Create payload indexes for fast filtering
-      await qdrant.createPayloadIndex(COLLECTION_NAME, {
-        field_name: 'meetingId',
-        field_schema: 'keyword',
-      });
-      await qdrant.createPayloadIndex(COLLECTION_NAME, {
-        field_name: 'contentType',
-        field_schema: 'keyword',
-      });
-      await qdrant.createPayloadIndex(COLLECTION_NAME, {
-        field_name: 'projectTags',
-        field_schema: 'keyword',
-      });
-
-      logger.info(`Qdrant collection "${COLLECTION_NAME}" created`, { vectorSize: VECTOR_SIZE });
+    if (exists) {
+      const details = await qdrant.getCollection(COLLECTION_NAME);
+      const currentSize = (details.config?.params?.vectors as any)?.size;
+      if (currentSize !== VECTOR_SIZE) {
+        logger.warn(`Dimension mismatch for Qdrant collection "${COLLECTION_NAME}". Expected: ${VECTOR_SIZE}, Found: ${currentSize}. Recreating collection...`);
+        await qdrant.deleteCollection(COLLECTION_NAME);
+        await createNewCollection();
+      } else {
+        logger.info(`Qdrant collection "${COLLECTION_NAME}" already exists with correct size: ${VECTOR_SIZE}`);
+      }
     } else {
-      logger.info(`Qdrant collection "${COLLECTION_NAME}" already exists`);
+      await createNewCollection();
     }
   } catch (error) {
     logger.error('Failed to initialize Qdrant collection', { error });

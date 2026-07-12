@@ -107,9 +107,23 @@ export class MeetingDetector {
           procName.includes('firefox') ||
           procName.includes('brave');
 
-        if (isBrowser && (title.includes('meet.google.com') || title.includes('google meet'))) {
-          console.log('[MeetingDetector] Google Meet detected in browser tab:', p.MainWindowTitle);
-          return 'Google Meet';
+        if (isBrowser) {
+          if (title.includes('meet.google.com') || title.includes('google meet')) {
+            console.log('[MeetingDetector] Google Meet detected in browser tab:', p.MainWindowTitle);
+            return 'Google Meet';
+          }
+          if (title.includes('teams.microsoft.com') || title.includes('teams.live.com') || title.includes('microsoft teams')) {
+            console.log('[MeetingDetector] Microsoft Teams detected in browser tab:', p.MainWindowTitle);
+            return 'Microsoft Teams';
+          }
+          if (title.includes('zoom.us') || title.includes('zoom meeting') || title.includes('zoom cloud meetings')) {
+            console.log('[MeetingDetector] Zoom detected in browser tab:', p.MainWindowTitle);
+            return 'Zoom';
+          }
+          if (title.includes('webex.com') || title.includes('cisco webex') || title.includes('webex meeting')) {
+            console.log('[MeetingDetector] Cisco Webex detected in browser tab:', p.MainWindowTitle);
+            return 'Cisco Webex';
+          }
         }
 
         // General: match against configured app list

@@ -25,6 +25,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       projectTags: true,
       createdAt: true,
       processingEndAt: true,
+      transcriptRaw: true,
       _count: { select: { actionItems: true, decisions: true, risks: true } },
     },
     orderBy: { createdAt: 'desc' },

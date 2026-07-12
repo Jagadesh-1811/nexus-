@@ -247,17 +247,22 @@ code, pre, .mono {
   font-weight: 600;
 }
 
-/* left accent bar on active */
-.nav-item.active::before {
+/* left accent bar placeholder to prevent layout shifts */
+.nav-item::before {
   content: '';
   display: block;
   width: 3px;
   height: 18px;
-  background: var(--primary);
+  background: transparent;
   border-radius: 2px;
   margin-right: 0;
   margin-left: -4px;
   flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.nav-item.active::before {
+  background: var(--primary);
 }
 
 .sidebar-top {

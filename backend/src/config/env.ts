@@ -45,6 +45,11 @@ const envSchema = z.object({
   OLLAMA_MODEL: z.string().default('qwen2.5:14b'),
   OLLAMA_AUDITOR_MODEL: z.string().default('qwen2.5:14b'),
 
+  // Featherless AI
+  FEATHERLESS_API_KEY: z.string().optional(),
+  FEATHERLESS_BASE_URL: z.string().url().default('https://api.featherless.ai/v1'),
+  FEATHERLESS_MODEL: z.string().default('meta-llama/Llama-3-8b-Instruct'),
+
   // Deepgram (Optional failover)
   DEEPGRAM_API_KEY: z.string().optional(),
 

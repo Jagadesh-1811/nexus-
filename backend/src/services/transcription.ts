@@ -22,16 +22,19 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResult> {
   const activeProvider = provider || (env.DEEPGRAM_API_KEY ? 'deepgram' : 'whisper');
 
-  // If no provider API key and no local whisper path, fall back to mock
   if (!env.DEEPGRAM_API_KEY && !process.env.WHISPER_CPP_PATH) {
-    logger.warn(`No transcription provider configured (missing DEEPGRAM_API_KEY and WHISPER_CPP_PATH). Generating mock transcript.`);
-    return mockLocalTranscription();
+    throw new Error('No transcription provider configured (missing DEEPGRAM_API_KEY and WHISPER_CPP_PATH).');
   }
 
   logger.info(`Starting transcription with provider: ${activeProvider} for file: ${filePath}`);
 
   if (activeProvider === 'deepgram') {
-    return transcribeWithDeepgram(filePath);
+    try {
+      return await transcribeWithDeepgram(filePath);
+    } catch (err) {
+      logger.warn(`Deepgram transcription failed (e.g. quota exceeded or network issue). Falling back to local Whisper. Error: ${String(err)}`);
+      return transcribeWithLocalWhisper(filePath);
+    }
   } else {
     return transcribeWithLocalWhisper(filePath);
   }
@@ -99,8 +102,8 @@ async function transcribeWithLocalWhisper(filePath: string): Promise<Transcripti
       throw new Error('Whisper output text file not generated');
     }
   } catch (error) {
-    logger.error('Local whisper execution failed. Falling back to mock transcription.', { error });
-    return mockLocalTranscription();
+    logger.error('Local whisper execution failed.', { error });
+    throw error;
   }
 }
 

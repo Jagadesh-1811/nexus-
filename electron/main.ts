@@ -88,7 +88,7 @@ let autoCaptureSettings = {
   consentGranted: true,
   showOverlay: true,
   method: 'app' as DetectionMethod,
-  appList: ['Zoom Meeting', 'Microsoft Teams', 'Google Meet', 'Webex', 'meet.google.com'],
+  appList: ['Zoom', 'Zoom Meeting', 'Zoom Cloud Meetings', 'Microsoft Teams', 'Google Meet', 'Webex', 'Cisco Webex', 'meet.google.com', 'teams.microsoft.com', 'zoom.us', 'webex.com'],
   storagePath: path.join(app.getPath('userData'), 'nexus-auto-recordings'),
   retentionDays: 7,
   storageAcknowledged: true
@@ -230,18 +230,17 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
   const fileHash = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
   const meetingId = uuidv4();
 
-  // Trigger Supabase storage upload asynchronously
-  uploadToSupabaseStorage(filePath, meetingId).then(async (audioUrl) => {
-    if (audioUrl) {
-      console.log(`Successfully uploaded meeting audio. Public URL: ${audioUrl}`);
-      await prisma.meeting.update({
-        where: { id: meetingId },
-        data: { audioUrl }
-      });
+  // Save audio locally in the persistent local storage path
+  const localFileName = `${meetingId}${path.extname(filePath) || '.webm'}`;
+  const localDestPath = path.join(autoCaptureSettings.storagePath, localFileName);
+  try {
+    if (path.resolve(filePath) !== path.resolve(localDestPath)) {
+      fs.copyFileSync(filePath, localDestPath);
+      console.log(`Saved audio locally to: ${localDestPath}`);
     }
-  }).catch(err => {
-    console.error('Failed to update meeting audioUrl:', err);
-  });
+  } catch (err) {
+    console.error('Failed to copy file to local storage:', err);
+  }
 
   const meeting = await prisma.meeting.create({
     data: {
@@ -253,6 +252,7 @@ async function runInProcessPipeline(event: any, filePath: string, title: string,
       participantNames: [],
       projectTags: ['nexus'],
       createdById: userId,
+      audioUrl: localDestPath,
     },
   });
 

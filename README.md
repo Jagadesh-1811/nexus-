@@ -5,7 +5,7 @@
 [![Database](https://img.shields.io/badge/database-PostgreSQL%20%7C%20Qdrant-orange)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](#)
 
-Nexus is an offline-first meeting capture, transcription, and action item validation workspace. Designed for hackathons and fast-paced developer teams, Nexus uses local and cloud AI orchestration to capture meeting recordings, generate accurate transcripts, validate action items against adversarial AI critics, and organize commitments in an interactive dashboard command center.
+Nexus is an offline-first meeting capture, transcription, and action item validation workspace. Designed for fast-paced developer teams, Nexus uses local and cloud AI orchestration to capture meeting recordings, generate accurate transcripts, validate action items against adversarial AI critics, and organize commitments in an interactive dashboard command center.
 
 ---
 
@@ -27,69 +27,65 @@ graph TD
 
 ## Key Features
 
-*   **Hybrid AI Core (Mastra + Ollama)**: Orchestrated AI workflow pipeline extracting structure, action items, and decisions from transcription text using local LLMs.
-*   **Speech-to-Text Integration**: Seamless audio transcription using high-performance cloud providers (Deepgram) or fully offline engines (Whisper).
-*   **Adversarial Validation Gate**: Local dual-model cross-check validating draft commitments against literal transcripts to flag hallucinations and unconfirmed assertions.
-*   **Ask Nexus (Vector Memory)**: Semantic search memory powered by Qdrant vector database and Ollama embeddings (nomic-embed-text) allowing you to ask queries across past meetings.
-*   **Commitment Dashboard**: Interactive dashboard center to view progress rails, approve pending/flagged commitments, and delete records cleanly.
+- **Hybrid AI Core (Mastra + Ollama):** Orchestrated AI workflow pipeline extracting structure, action items, and decisions from transcription text using local LLMs.
+- **Speech-to-Text Integration:** Seamless audio transcription using high-performance cloud providers (Deepgram) or fully offline engines (Whisper).
+- **Adversarial Validation Gate:** Local dual-model cross-check validating draft commitments against literal transcripts to flag hallucinations and unconfirmed assertions.
+- **Ask Nexus (Vector Memory):** Semantic search memory powered by Qdrant vector database and Ollama embeddings (nomic-embed-text) allowing you to ask queries across past meetings.
+- **Commitment Dashboard:** Interactive dashboard center to view progress rails, approve pending/flagged commitments, and delete records cleanly.
 
----
-
-## Installation Requirements
-
-### Prerequisites
-*   **Node.js**: v18.0.0 or later
-*   **PostgreSQL**: A running instance (local or hosted on Supabase)
-*   **Ollama**: Install Ollama Desktop on your machine.
-
-### Installation Procedure
-
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/Jagadesh-1811/nexus-.git
-    cd nexus-
-    ```
-
-2.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
-
-3.  **Setup the Database Schema**:
-    Ensure your PostgreSQL connection string is in your .env file, then push the database schema:
-    ```bash
-    npx prisma db push
-    npm run prisma:generate
-    ```
+### What's New
+- **Role-Based Access Control (RBAC):** Secure Workspace and Settings sections based on strict user roles (`EXECUTIVE`, `LEAD_OWNER`, `MEMBER`, `VIEWER`).
+- **Local Storage & Retention Policy:** Explicit data sovereignty. Raw audio and transcripts are saved securely to your local machine, guarded by an active background auto-cleanup routine based on user-defined retention days.
+- **Activity Transparency Panel:** Real-time pipeline progression logs visually integrated into the UI for complete auditability of the extraction process.
+- **Dynamic Theme Support:** Fully adaptable UI supporting native light/dark mode variables.
 
 ---
 
 ## Quick Start
 
-1.  **Start Ollama**:
-    Ensure Ollama is running and start the daemon:
-    ```powershell
-    ollama serve
-    ```
+### Prerequisites
+- **Node.js:** v18.0.0 or later
+- **PostgreSQL:** A running instance (local or hosted on Supabase)
+- **Ollama:** Install [Ollama Desktop](https://ollama.com) on your machine.
 
-2.  **Pull Necessary AI Models**:
-    Pull the default models used by the extraction, auditing, and vector memory steps:
-    ```powershell
-    ollama pull gpt-oss:20b-cloud
-    ollama pull nomic-embed-text:latest
-    ```
+### Installation
 
-3.  **Launch the App**:
-    Start the Electron desktop interface and orchestrator backend concurrently:
-    ```bash
-    npm run electron:dev
-    ```
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/Jagadesh-1811/nexus-.git
+   cd nexus-
+   ```
+
+2. **Install Dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Setup the Database Schema:**
+   Ensure your PostgreSQL connection string is in your `.env` file, then push the database schema:
+   ```bash
+   npx prisma db push
+   npm run prisma:generate
+   ```
+
+4. **Start Ollama & Pull Models:**
+   Ensure Ollama is running, then pull the required models:
+   ```bash
+   ollama pull gpt-oss:20b-cloud
+   ollama pull nomic-embed-text:latest
+   ```
+
+5. **Launch the Application:**
+   Start the Electron desktop interface and orchestrator backend concurrently:
+   ```bash
+   npm run electron:dev
+   ```
 
 ---
 
 ## Configuration
 
-Configure your environment settings in the .env file at the root of the project:
+Create a `.env` file at the root of the project and configure the following variables:
 
 ```env
 # Supabase & PostgreSQL Connection
@@ -115,13 +111,21 @@ QDRANT_API_KEY=your-qdrant-api-key
 
 ---
 
-## License
-
-This project is licensed under the MIT License.
-
----
-
 ## The Team
 
 *   **Jagadeeshwar C V** 
 *   **Shyam Yemuka** 
+
+---
+
+## Contributing
+
+We welcome contributions! If you'd like to contribute, please follow these steps:
+1. Fork the repository.
+2. Create a new branch for your feature or bugfix (`git checkout -b feature/your-feature-name`).
+3. Commit your changes with descriptive messages.
+4. Push your branch and submit a pull request.
+
+Please make sure to open an issue first to discuss any major changes you wish to make.
+
+---

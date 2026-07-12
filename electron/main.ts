@@ -84,14 +84,14 @@ let meetingDetector: MeetingDetector | null = null;
 let recordingOverlay: RecordingOverlay | null = null;
 
 let autoCaptureSettings = {
-  enabled: false,
-  consentGranted: false,
+  enabled: true,
+  consentGranted: true,
   showOverlay: true,
   method: 'app' as DetectionMethod,
-  appList: ['Zoom Meeting', 'Microsoft Teams', 'Google Meet', 'Webex'],
+  appList: ['Zoom Meeting', 'Microsoft Teams', 'Google Meet', 'Webex', 'meet.google.com'],
   storagePath: path.join(app.getPath('userData'), 'nexus-auto-recordings'),
   retentionDays: 7,
-  storageAcknowledged: false
+  storageAcknowledged: true
 };
 
 // Ensure auto-capture directory exists
@@ -870,10 +870,23 @@ async function finalizeRecording() {
   if (trayManager) trayManager.setState('processing');
 
   if (currentRecordingFile && fs.existsSync(currentRecordingFile)) {
-    const session = await supabase.auth.getSession();
-    const userId = session.data.session?.user.id;
-    if (userId) {
-      await runInProcessPipeline(null, currentRecordingFile, currentRecordingTitle || 'Auto-Captured Call', userId);
+    try {
+      const session = await supabase.auth.getSession();
+      const userId = session.data.session?.user.id;
+      if (userId) {
+        await runInProcessPipeline(null, currentRecordingFile, currentRecordingTitle || 'Auto-Captured Call', userId);
+      } else {
+        // No DB session - still notify the renderer so the UI can show the file
+        console.log('[AutoCap] No active session, saving recording locally at:', currentRecordingFile);
+        if (mainWindow) {
+          mainWindow.webContents.send('autocap:recorded-locally', {
+            filePath: currentRecordingFile,
+            title: currentRecordingTitle || 'Auto-Captured Call'
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[AutoCap] finalizeRecording error:', err);
     }
   }
 }

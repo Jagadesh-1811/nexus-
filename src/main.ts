@@ -1738,9 +1738,23 @@ async function renderSettings() {
   if (sliders[0] && toggleEl.checked) {
     sliders[0].style.backgroundColor = 'var(--primary)';
   }
-  toggleEl?.addEventListener('change', () => {
+  toggleEl?.addEventListener('change', async () => {
     if (sliders[0]) {
       sliders[0].style.backgroundColor = toggleEl.checked ? 'var(--primary)' : 'var(--surface-card)';
+    }
+    // Save immediately so the detector starts/stops right away
+    await window.synapse.settings.updateAutocapture({ enabled: toggleEl.checked, consentGranted: true });
+
+    // Sync the nav bar status button
+    const bgStatusBtn = document.getElementById('btn-bg-status');
+    if (bgStatusBtn) {
+      if (toggleEl.checked) {
+        bgStatusBtn.classList.add('active');
+        bgStatusBtn.setAttribute('title', 'Background Auto-Capture Active');
+      } else {
+        bgStatusBtn.classList.remove('active');
+        bgStatusBtn.setAttribute('title', 'Background Auto-Capture Disabled');
+      }
     }
   });
 
